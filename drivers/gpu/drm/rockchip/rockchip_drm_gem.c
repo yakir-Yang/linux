@@ -19,6 +19,8 @@
 #include <drm/rockchip_drm.h>
 
 #include <linux/dma-attrs.h>
+#include <linux/dma-buf.h>
+#include <linux/reservation.h>
 
 #include "rockchip_drm_drv.h"
 #include "rockchip_drm_gem.h"
