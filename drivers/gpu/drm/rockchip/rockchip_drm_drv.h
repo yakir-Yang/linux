@@ -50,10 +50,21 @@ struct rockchip_atomic_commit {
 };
 
 /*
+ * Rockchip drm_file private structure.
+ *
+ * @gem_cpu_acquire_list: list of GEM objects we hold acquires on
+ */
+struct rockchip_drm_file_private {
+	struct list_head		gem_cpu_acquire_list;
+};
+
+/*
  * Rockchip drm private structure.
  *
  * @crtc: array of enabled CRTCs, used to map from "pipe" to drm_crtc.
  * @num_pipe: number of pipes for this device.
+ * @cpu_fence_context: fence context used for CPU acquire/release
+ * @cpu_fence_seqno: fence sequence number
  */
 struct rockchip_drm_private {
 	struct drm_fb_helper fbdev_helper;
@@ -61,6 +72,10 @@ struct rockchip_drm_private {
 	const struct rockchip_crtc_funcs *crtc_funcs[ROCKCHIP_MAX_CRTC];
 
 	struct rockchip_atomic_commit commit;
+#ifdef CONFIG_DRM_DMA_SYNC
+	unsigned int cpu_fence_context;
+	atomic_t cpu_fence_seqno;
+#endif
 };
 
 void rockchip_drm_atomic_work(struct work_struct *work);
