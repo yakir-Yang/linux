@@ -157,7 +157,7 @@ static int exynos_dp_dt_parse_panel(struct exynos_dp_device *dp)
 	int ret;
 
 	ret = of_get_videomode(dp->dev->of_node, &dp->priv.vm,
-			OF_USE_NATIVE_MODE);
+			       OF_USE_NATIVE_MODE);
 	if (ret) {
 		DRM_ERROR("failed: of_get_videomode() : %d\n", ret);
 		return ret;
@@ -214,7 +214,7 @@ static int exynos_dp_bind(struct device *dev, struct device *master, void *data)
 }
 
 static void exynos_dp_unbind(struct device *dev, struct device *master,
-				void *data)
+			     void *data)
 {
 	return analogix_dp_unbind(dev, master, data);
 }
@@ -231,7 +231,7 @@ static int exynos_dp_probe(struct platform_device *pdev)
 	struct exynos_dp_device *dp;
 
 	dp = devm_kzalloc(&pdev->dev, sizeof(struct exynos_dp_device),
-				GFP_KERNEL);
+			  GFP_KERNEL);
 	if (!dp)
 		return -ENOMEM;
 
