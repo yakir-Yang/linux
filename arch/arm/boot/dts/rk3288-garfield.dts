@@ -113,10 +113,13 @@
 		#clock-cells = <0>;
 	};
 
-	wifi_reset_gpio {
+	gpio_reset {
 		status = "okay";
-		compatible = "rockchip,wifi-reset-wdt";
-		wifi-reset-gpios = <&gpio7 21 GPIO_ACTIVE_HIGH>;
+		compatible = "rockchip,gpio-reset";
+		reset-gpios = <&gpio7 21 GPIO_ACTIVE_HIGH>, <&gpio8 3 GPIO_ACTIVE_HIGH>;
+		delay-time = <150>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&wifi_reset &usb_hub_nreset>;
 	};
 
 	wireless-wlan {
@@ -483,6 +486,15 @@
 
 		phy_int: phy-int {
 			rockchip,pins = <0 9 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	reset_gpio: reset-gpio {
+		wifi_reset: wifi-reset {
+			rockchip,pins = <7 21 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+		usb_hub_nreset: usb-hub-nreset {
+			rockchip,pins = <8 3 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
