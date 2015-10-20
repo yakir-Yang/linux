@@ -89,6 +89,15 @@
 		regulator-boot-on;
 	};
 
+	vcc_5v: v5v-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_5v";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
 	/*
 	 * NOTE: vcc_sd isn't hooked up on v1.0 boards where power comes from
 	 * vcc_io directly.  Those boards won't be able to power cycle SD cards
@@ -137,6 +146,12 @@
 		micdet-gpios = <&gpio8 2 GPIO_ACTIVE_LOW>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&hp_det>, <&mic_det>;
+	};
+
+	panel: panel {
+		compatible ="chimei,bn0701083a","simple-panel";
+		status = "okay";
+		power-supply = <&vcc_5v>;
 	};
 };
 
@@ -211,6 +226,12 @@
 	snps,reset-gpio = <&gpio4 8 0>;
 	snps,reset-active-low;
 	snps,reset-delays-us = <0 10000 1000000>;
+};
+
+
+&edp {
+	status = "okay";
+	rockchip,panel = <&panel>;
 };
 
 &hdmi {
