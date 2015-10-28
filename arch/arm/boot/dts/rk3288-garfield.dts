@@ -576,9 +576,6 @@
 &usb_otg {
 	dr_mode = "host";
 	status = "okay";
-	assigned-clocks = <&cru SCLK_USBPHY480M_SRC>;
-	assigned-clock-parents = <&cru SCLK_OTGPHY0>;
-
 };
 
 &usb_host0_ehci {
@@ -591,6 +588,8 @@
 
 &usb_hsic {
 	status = "okay";
+	assigned-clocks = <&cru SCLK_USBPHY480M_SRC>;
+	assigned-clock-parents = <&cru SCLK_OTGPHY2>;
 };
 
 &vopb {
