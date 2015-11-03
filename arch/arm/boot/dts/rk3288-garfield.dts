@@ -214,7 +214,7 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&rgmii_pins>, <&phy_rst>, <&phy_pmeb>, <&phy_int>;
 
-	tx_delay = <0x30>;
+	tx_delay = <0x20>;
 	rx_delay = <0x10>;
 
 	resets = <&cru SRST_MAC>;
