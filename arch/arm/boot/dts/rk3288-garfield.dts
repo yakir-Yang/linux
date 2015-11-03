@@ -239,6 +239,10 @@
 	status = "okay";
 };
 
+&hdmi_audio {
+	status = "okay";
+};
+
 &i2s {
 	status = "okay";
 	clock-names = "i2s_hclk", "i2s_clk", "i2s_clk_out";
