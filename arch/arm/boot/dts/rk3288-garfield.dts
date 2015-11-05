@@ -183,8 +183,6 @@
 		533000 1150000
 		666000 1200000
 	>;
-
-	#cooling-cells = <2>; /* min followed by max */
 };
 
 &emmc {
