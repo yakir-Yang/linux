@@ -310,6 +310,7 @@
 		compatible = "active-semi,act8846";
 		reg = <0x5a>;
 		status = "okay";
+		system-power-controller;
 
 		vp1-supply = <&vcc_sys>;
 		vp2-supply = <&vcc_sys>;
