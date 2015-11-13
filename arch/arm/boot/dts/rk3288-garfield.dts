@@ -176,6 +176,7 @@
 	rockchip,trcd = <10>;
 	rockchip,trp = <10>;
 	rockchip,pd-enable-freq = <533000000>;
+	rockchip,dmc-disable-freq = <200000000>;
 	operating-points = <
 		/* KHz    uV */
 		200000 1050000
