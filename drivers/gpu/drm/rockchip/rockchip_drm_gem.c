@@ -156,6 +156,10 @@ void rockchip_gem_free_object(struct drm_gem_object *obj)
 	drm_fence_signal_and_put(&rk_obj->acquire_fence);
 #endif
 
+#ifdef CONFIG_DRM_DMA_SYNC
+	drm_fence_signal_and_put(&rk_obj->acquire_fence);
+#endif
+
 	kfree(rk_obj);
 }
 
