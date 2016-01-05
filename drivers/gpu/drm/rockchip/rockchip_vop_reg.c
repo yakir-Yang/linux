@@ -174,6 +174,7 @@ static const int rk3288_vop_intrs[] = {
 };
 
 static const struct vop_intr rk3288_vop_intr = {
+	.write_mask = false,
 	.intrs = rk3288_vop_intrs,
 	.nintrs = ARRAY_SIZE(rk3288_vop_intrs),
 	.status = VOP_REG(RK3288_INTR_CTRL0, 0xf, 0),
@@ -240,6 +241,7 @@ static const int rk3036_vop_intrs[] = {
 };
 
 static const struct vop_intr rk3036_intr = {
+	.write_mask = false,
 	.intrs = rk3036_vop_intrs,
 	.nintrs = ARRAY_SIZE(rk3036_vop_intrs),
 	.status = VOP_REG(RK3036_INT_STATUS, 0xf, 0),
