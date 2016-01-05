@@ -60,6 +60,7 @@ struct vop_ctrl {
 };
 
 struct vop_intr {
+	bool write_mask;
 	const int *intrs;
 	uint32_t nintrs;
 	struct vop_reg enable;
