@@ -24,6 +24,7 @@ enum {
 enum dw_hdmi_devtype {
 	IMX6Q_HDMI,
 	IMX6DL_HDMI,
+	RK3229_HDMI,
 	RK3288_HDMI,
 };
 
@@ -54,6 +55,8 @@ struct dw_hdmi_plat_data {
 	const struct dw_hdmi_phy_config *phy_config;
 	enum drm_mode_status (*mode_valid)(const struct dw_hdmi_plat_data *pd,
 					   struct drm_display_mode *mode);
+	int (*extphy_config)(const struct dw_hdmi_plat_data *plat_data,
+			     int res_idx, int pixelclock);
 };
 
 void dw_hdmi_unbind(struct device *dev, struct device *master, void *data);
