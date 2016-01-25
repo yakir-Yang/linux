@@ -42,6 +42,10 @@ int drm_atomic_helper_commit(struct drm_device *dev,
 			     struct drm_atomic_state *state,
 			     bool async);
 
+bool drm_atomic_helper_framebuffer_changed(struct drm_device *dev,
+					   struct drm_atomic_state *old_state,
+					   struct drm_crtc *crtc);
+
 void drm_atomic_helper_wait_for_vblanks(struct drm_device *dev,
 					struct drm_atomic_state *old_state);
 
@@ -126,6 +130,8 @@ void __drm_atomic_helper_plane_destroy_state(struct drm_plane *plane,
 void drm_atomic_helper_plane_destroy_state(struct drm_plane *plane,
 					  struct drm_plane_state *state);
 
+void __drm_atomic_helper_connector_reset(struct drm_connector *connector,
+					 struct drm_connector_state *conn_state);
 void drm_atomic_helper_connector_reset(struct drm_connector *connector);
 void
 __drm_atomic_helper_connector_duplicate_state(struct drm_connector *connector,
