@@ -45,6 +45,39 @@ struct drm_rockchip_gem_map_off {
 	uint64_t offset;
 };
 
+/**
+ * A structure for mapping buffer.
+ *
+ * @handle: a handle to gem object created.
+ * @pad: just padding to be 64-bit aligned.
+ * @size: memory size to be mapped.
+ * @mapped: having user virtual address mmaped.
+ *	- this variable would be filled by rockchip gem module
+ *	of kernel side with user virtual address which is allocated
+ *	by do_mmap().
+ */
+struct drm_rockchip_gem_mmap {
+	unsigned int handle;
+	unsigned int pad;
+	uint64_t size;
+	uint64_t mapped;
+};
+
+/**
+ * A structure to gem information.
+ *
+ * @handle: a handle to gem object created.
+ * @flags: flag value including memory type and cache attribute and
+ *	this value would be set by driver.
+ * @size: size to memory region allocated by gem and this size would
+ *	be set by driver.
+ */
+struct drm_rockchip_gem_info {
+	unsigned int handle;
+	unsigned int flags;
+	uint64_t size;
+};
+
 /* acquire type definitions. */
 enum drm_rockchip_gem_cpu_acquire_type {
 	DRM_ROCKCHIP_GEM_CPU_ACQUIRE_SHARED = 0x0,
@@ -75,12 +108,20 @@ struct drm_rockchip_gem_cpu_release {
 #define DRM_ROCKCHIP_GEM_MAP_OFFSET	0x01
 #define DRM_ROCKCHIP_GEM_CPU_ACQUIRE	0x02
 #define DRM_ROCKCHIP_GEM_CPU_RELEASE	0x03
+#define DRM_ROCKCHIP_GEM_MMAP		0x04
+#define DRM_ROCKCHIP_GEM_GET		0x05
 
 #define DRM_IOCTL_ROCKCHIP_GEM_CREATE	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_ROCKCHIP_GEM_CREATE, struct drm_rockchip_gem_create)
 
 #define DRM_IOCTL_ROCKCHIP_GEM_MAP_OFFSET	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_ROCKCHIP_GEM_MAP_OFFSET, struct drm_rockchip_gem_map_off)
+
+#define DRM_IOCTL_ROCKCHIP_GEM_MMAP	DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_ROCKCHIP_GEM_MMAP, struct drm_rockchip_gem_mmap)
+
+#define DRM_IOCTL_ROCKCHIP_GEM_GET	DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_ROCKCHIP_GEM_GET,	struct drm_rockchip_gem_info)
 
 #define DRM_IOCTL_ROCKCHIP_GEM_CPU_ACQUIRE	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_ROCKCHIP_GEM_CPU_ACQUIRE, struct drm_rockchip_gem_cpu_acquire)

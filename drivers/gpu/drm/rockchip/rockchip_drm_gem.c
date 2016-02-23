@@ -153,6 +153,7 @@ struct rockchip_gem_object *
 	if (!rk_obj)
 		return ERR_PTR(-ENOMEM);
 
+	rk_obj->size = size;
 	obj = &rk_obj->base;
 
 	drm_gem_private_object_init(drm, obj, size);
@@ -292,6 +293,82 @@ int rockchip_gem_dumb_create(struct drm_file *file_priv,
 						 &args->handle);
 
 	return PTR_ERR_OR_ZERO(rk_obj);
+}
+
+int rockchip_drm_gem_mmap_buffer(struct file *filp,
+				 struct vm_area_struct *vma)
+{
+	struct drm_gem_object *obj = filp->private_data;
+
+	return rockchip_gem_mmap_buf(obj, vma);
+}
+
+int rockchip_drm_gem_mmap_ioctl(struct drm_device *dev, void *data,
+				struct drm_file *file_priv)
+{
+	struct rockchip_drm_file_private *rockchip_file_priv;
+	struct drm_rockchip_gem_mmap *args = data;
+	struct drm_gem_object *obj;
+	struct file *anon_filp;
+	unsigned int addr;
+
+	mutex_lock(&dev->struct_mutex);
+
+	obj = drm_gem_object_lookup(dev, file_priv, args->handle);
+	if (!obj) {
+		DRM_ERROR("failed to lookup gem object.\n");
+		mutex_unlock(&dev->struct_mutex);
+		return -EINVAL;
+	}
+
+	rockchip_file_priv = file_priv->driver_priv;
+	anon_filp = rockchip_file_priv->anon_filp;
+	anon_filp->private_data = obj;
+
+	addr = vm_mmap(anon_filp, 0, args->size, PROT_READ | PROT_WRITE,
+			MAP_SHARED, 0);
+
+	drm_gem_object_unreference(obj);
+
+	if (IS_ERR((void *)addr)) {
+		mutex_unlock(&dev->struct_mutex);
+		return PTR_ERR((void *)addr);
+	}
+
+	mutex_unlock(&dev->struct_mutex);
+
+	args->mapped = addr;
+
+	DRM_DEBUG_KMS("mapped = 0x%lx\n", (unsigned long)args->mapped);
+
+	return 0;
+}
+
+int rockchip_drm_gem_get_ioctl(struct drm_device *dev, void *data,
+			       struct drm_file *file_priv)
+{
+	struct rockchip_gem_object *rk_obj;
+	struct drm_rockchip_gem_info *args = data;
+	struct drm_gem_object *obj;
+
+	mutex_lock(&dev->struct_mutex);
+
+	obj = drm_gem_object_lookup(dev, file_priv, args->handle);
+	if (!obj) {
+		DRM_ERROR("failed to lookup gem object.\n");
+		mutex_unlock(&dev->struct_mutex);
+		return -EINVAL;
+	}
+
+	rk_obj = to_rockchip_obj(obj);
+
+	args->flags = rk_obj->flags;
+	args->size = rk_obj->size;
+
+	drm_gem_object_unreference(obj);
+	mutex_unlock(&dev->struct_mutex);
+
+	return 0;
 }
 
 int rockchip_gem_map_offset_ioctl(struct drm_device *drm, void *data,

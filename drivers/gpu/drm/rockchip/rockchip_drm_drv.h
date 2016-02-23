@@ -37,6 +37,7 @@ struct drm_connector;
  */
 struct rockchip_drm_file_private {
 	struct list_head		gem_cpu_acquire_list;
+	struct file			*anon_filp;
 };
 
 /*

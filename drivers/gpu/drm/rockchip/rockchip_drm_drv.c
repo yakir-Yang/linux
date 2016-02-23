@@ -20,6 +20,7 @@
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_fb_helper.h>
 #include <drm/drm_sync_helper.h>
+#include <linux/anon_inodes.h>
 #include <linux/dma-mapping.h>
 #include <linux/pm_runtime.h>
 #include <linux/of_graph.h>
@@ -191,9 +192,15 @@ static int rockchip_drm_unload(struct drm_device *drm_dev)
 	return 0;
 }
 
+static const struct file_operations rockchip_drm_gem_fops = {
+	.mmap = rockchip_drm_gem_mmap_buffer,
+};
+
 static int rockchip_drm_open(struct drm_device *dev, struct drm_file *file)
 {
 	struct rockchip_drm_file_private *file_priv;
+	struct file *anon_filp;
+	int ret = 0;
 
 	file_priv = kzalloc(sizeof(*file_priv), GFP_KERNEL);
 	if (!file_priv)
@@ -202,7 +209,23 @@ static int rockchip_drm_open(struct drm_device *dev, struct drm_file *file)
 
 	file->driver_priv = file_priv;
 
+	anon_filp = anon_inode_getfile("rockchip_gem", &rockchip_drm_gem_fops,
+					NULL, 0);
+	if (IS_ERR(anon_filp)) {
+		ret = PTR_ERR(anon_filp);
+		goto err_file_priv_free;
+	}
+
+	anon_filp->f_mode = FMODE_READ | FMODE_WRITE;
+	file_priv->anon_filp = anon_filp;
+
 	return 0;
+
+err_file_priv_free:
+	kfree(file_priv);
+	file->driver_priv = NULL;
+
+	return ret;
 }
 
 static void rockchip_drm_preclose(struct drm_device *dev,
@@ -230,6 +253,14 @@ static void rockchip_drm_preclose(struct drm_device *dev,
 
 static void rockchip_drm_postclose(struct drm_device *dev, struct drm_file *file)
 {
+	struct rockchip_drm_file_private *file_priv = file->driver_priv;
+
+	if (!file_priv)
+		return;
+
+	if (file_priv->anon_filp)
+		fput(file_priv->anon_filp);
+
 	kfree(file->driver_priv);
 	file->driver_priv = NULL;
 }
@@ -247,6 +278,10 @@ static const struct drm_ioctl_desc rockchip_ioctls[] = {
 	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_MAP_OFFSET,
 			  rockchip_gem_map_offset_ioctl,
 			  DRM_UNLOCKED | DRM_AUTH | DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_MMAP,
+			  rockchip_drm_gem_mmap_ioctl, DRM_UNLOCKED | DRM_AUTH),
+	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_GET,
+			  rockchip_drm_gem_get_ioctl, DRM_UNLOCKED),
 	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_CPU_ACQUIRE,
 			  rockchip_gem_cpu_acquire_ioctl,
 			  DRM_UNLOCKED | DRM_AUTH),
