@@ -131,6 +131,13 @@
 		clock-frequency = <24000000>;
 	};
 
+	hdmiphy_phy: hdmiphy_phy {
+		compatible = "fixed-clock";
+		clock-frequency = <594000000>;
+		clock-output-names = "hdmiphy_phy";
+		#clock-cells = <0>;
+	};
+
 	xin24m: oscillator {
 		compatible = "fixed-clock";
 		clock-frequency = <24000000>;
@@ -276,6 +283,69 @@
 		      <0x32014000 0x2000>,
 		      <0x32016000 0x2000>;
 		interrupts = <GIC_PPI 9 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_HIGH)>;
+	};
+
+	hdmi: hdmi@200a0000 {
+		compatible = "rockchip,rk3229-dw-hdmi";
+		reg = <0x200a0000 0x20000>, <0x12030000 0x10000>;
+		reg-io-width = <4>;
+		rockchip,grf = <&grf>;
+		resets = <&cru SRST_HDMI_P>, <&cru SRST_HDMIPHY>;
+		reset-names = "ctrl", "phy";
+		interrupts = <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&cru PCLK_HDMI_CTRL>, <&cru SCLK_HDMI_HDCP>, <&cru PCLK_HDMI_PHY>;
+		clock-names = "iahb", "isfr", "extphy";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&hdmi_ddc_scl &hdmi_ddc_sda &hdmi_hpd>;
+		status = "disabled";
+
+		ports {
+			hdmi_in: port {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				hdmi_in_vop: endpoint@0 {
+					reg = <0>;
+					remote-endpoint = <&vop_out_hdmi>;
+				};
+			};
+		};
+	};
+
+	vop_mmu: iommu@20053f00 {
+		compatible = "rockchip,iommu";
+		reg = <0x20053f00 0x30>;
+		interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "vop_mmu";
+		#iommu-cells = <0>;
+		status = "disabled";
+	};
+
+	vop: vop@20050000 {
+		compatible = "rockchip,rk3229-vop";
+		reg = <0x20050000 0x3ea0>;
+		interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&cru ACLK_VOP>, <&cru HCLK_VOP>, <&cru DCLK_VOP>;
+		clock-names = "aclk_vop", "hclk_vop", "dclk_vop";
+
+		resets = <&cru SRST_VOP_A>, <&cru SRST_VOP_H>, <&cru SRST_VOP_D>;
+		reset-names = "axi", "ahb", "dclk";
+		iommus = <&vop_mmu>;
+		status = "disabled";
+
+		vop_out: port {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			vop_out_hdmi: endpoint@0 {
+				reg = <1>;
+				remote-endpoint = <&hdmi_in_vop>;
+			};
+		};
+	};
+
+	display-subsystem {
+		compatible = "rockchip,display-subsystem";
+		ports = <&vop_out>;
 	};
 
 	pinctrl: pinctrl {
@@ -436,6 +506,20 @@
 
 			uart2_rts: uart2-rts {
 				rockchip,pins = <0 24 RK_FUNC_1 &pcfg_pull_none>;
+			};
+		};
+
+		hdmi {
+			hdmi_ddc_scl: hdmi-ddc-scl {
+				rockchip,pins = <0 6 RK_FUNC_2 &pcfg_pull_none>;
+			};
+
+			hdmi_ddc_sda: hdmi-ddc-sda {
+				rockchip,pins = <0 7 RK_FUNC_2 &pcfg_pull_none>;
+			};
+
+			hdmi_hpd: hdmi-hpd {
+				rockchip,pins = <0 15 RK_FUNC_1 &pcfg_pull_none>;
 			};
 		};
 	};
