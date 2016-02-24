@@ -64,3 +64,20 @@
 &uart2 {
 	status = "okay";
 };
+
+&i2c3 {
+	status = "okay";
+};
+
+&vop {
+	status = "okay";
+};
+
+&vop_mmu {
+       status = "okay";
+};
+
+&hdmi {
+	ddc-i2c-bus = <&i2c3>;
+	status = "okay";
+};
