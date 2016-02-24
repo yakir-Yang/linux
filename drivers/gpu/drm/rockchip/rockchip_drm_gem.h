@@ -61,7 +61,7 @@ int rockchip_gem_mmap_buf(struct drm_gem_object *obj,
 
 struct rockchip_gem_object *
 	rockchip_gem_create_object(struct drm_device *drm, unsigned int size,
-				   bool alloc_kmap);
+				   unsigned int flags, bool alloc_kmap);
 
 void rockchip_gem_free_object(struct drm_gem_object *obj);
 

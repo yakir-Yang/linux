@@ -16,6 +16,7 @@
 #include <drm/drmP.h>
 #include <drm/drm_fb_helper.h>
 #include <drm/drm_crtc_helper.h>
+#include <drm/rockchip_drm.h>
 
 #include "rockchip_drm_drv.h"
 #include "rockchip_drm_gem.h"
@@ -71,7 +72,9 @@ static int rockchip_drm_fbdev_create(struct drm_fb_helper *helper,
 
 	size = mode_cmd.pitches[0] * mode_cmd.height;
 
-	rk_obj = rockchip_gem_create_object(dev, size, true);
+	/* Alloc physically continuous memory */
+	rk_obj = rockchip_gem_create_object(dev, size, ROCKCHIP_BO_CONTIG,
+					    true);
 	if (IS_ERR(rk_obj))
 		return -ENOMEM;
 
