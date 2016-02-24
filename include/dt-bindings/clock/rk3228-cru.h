@@ -49,10 +49,15 @@
 #define SCLK_SDMMC_SAMPLE	118
 #define SCLK_SDIO_SAMPLE	119
 #define SCLK_EMMC_SAMPLE	121
+#define SCLK_VOP		122
+
+/* dclk gates */
+#define DCLK_VOP		190
 
 /* aclk gates */
 #define ACLK_DMAC		194
 #define ACLK_PERI		210
+#define ACLK_VOP		211
 
 /* pclk gates */
 #define PCLK_GPIO0		320
@@ -73,6 +78,7 @@
 #define PCLK_PERI		363
 
 /* hclk gates */
+#define HCLK_VOP		452
 #define HCLK_NANDC		453
 #define HCLK_SDMMC		456
 #define HCLK_SDIO		457
