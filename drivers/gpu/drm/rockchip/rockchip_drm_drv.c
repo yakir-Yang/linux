@@ -21,6 +21,7 @@
 #include <drm/drm_fb_helper.h>
 #include <drm/drm_sync_helper.h>
 #include <linux/anon_inodes.h>
+#include <linux/debugfs.h>
 #include <linux/dma-mapping.h>
 #include <linux/pm_runtime.h>
 #include <linux/of_graph.h>
@@ -39,6 +40,89 @@
 #define DRIVER_DATE	"20140818"
 #define DRIVER_MAJOR	1
 #define DRIVER_MINOR	0
+
+/* As the drm_debugfs_init() routines are called before dev->dev_private is
+ * allocated we need to hook into the minor for release. */
+static int
+drm_add_fake_info_node(struct drm_minor *minor,
+		       struct dentry *ent,
+		       const void *key)
+{
+	struct drm_info_node *node;
+
+	node = kmalloc(sizeof(*node), GFP_KERNEL);
+	if (node == NULL) {
+		debugfs_remove(ent);
+		return -ENOMEM;
+	}
+
+	node->minor = minor;
+	node->dent = ent;
+	node->info_ent = (void *) key;
+
+	mutex_lock(&minor->debugfs_lock);
+	list_add(&node->list, &minor->debugfs_list);
+	mutex_unlock(&minor->debugfs_lock);
+
+	return 0;
+}
+
+static int rockchip_drm_negate_color_set(void *data, u64 status)
+{
+	struct drm_device *drm_dev = data;
+	struct drm_crtc *crtc;
+
+	list_for_each_entry(crtc, &drm_dev->mode_config.crtc_list, head)
+		rockchip_drm_crtc_negate_color(crtc, status ? true : false);
+
+	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(rockchip_drm_negate_color_fops, NULL,
+			rockchip_drm_negate_color_set, "%llu\n");
+
+static const struct rockchip_drm_debugfs_files {
+	const char *name;
+	const struct file_operations *fops;
+} rockchip_drm_debugfs_files[] = {
+	{"rockchip_drm_crtc_negate_color", &rockchip_drm_negate_color_fops},
+};
+
+int rockchip_drm_debugfs_init(struct drm_minor *minor)
+{
+	struct drm_device *dev = minor->dev;
+	struct dentry *ent;
+	int ret;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(rockchip_drm_debugfs_files); i++) {
+		ent = debugfs_create_file(rockchip_drm_debugfs_files[i].name,
+					  S_IRUGO | S_IWUSR,
+					  minor->debugfs_root, dev,
+					  rockchip_drm_debugfs_files[i].fops);
+		if (!ent)
+			return -ENOMEM;
+
+		ret = drm_add_fake_info_node(minor, ent,
+					rockchip_drm_debugfs_files[i].fops);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+void rockchip_drm_debugfs_cleanup(struct drm_minor *minor)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(rockchip_drm_debugfs_files); i++) {
+		struct drm_info_list *info_list =
+			(struct drm_info_list *) rockchip_drm_debugfs_files[i].fops;
+
+		drm_debugfs_remove_files(info_list, 1, minor);
+	}
+}
 
 /*
  * Attach a (component) device to the shared drm dma mapping from master drm
@@ -317,6 +401,10 @@ static struct drm_driver rockchip_drm_driver = {
 	.preclose		= rockchip_drm_preclose,
 	.lastclose		= rockchip_drm_lastclose,
 	.postclose		= rockchip_drm_postclose,
+#if defined(CONFIG_DEBUG_FS)
+	.debugfs_init		= rockchip_drm_debugfs_init,
+	.debugfs_cleanup	= rockchip_drm_debugfs_cleanup,
+#endif
 	.get_vblank_counter	= drm_vblank_count,
 	.enable_vblank		= rockchip_drm_crtc_enable_vblank,
 	.disable_vblank		= rockchip_drm_crtc_disable_vblank,

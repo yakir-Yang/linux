@@ -24,12 +24,14 @@
 #include <linux/delay.h>
 #include <linux/dma-buf.h>
 #include <linux/fence.h>
+#include <linux/iopoll.h>
 #include <linux/kernel.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/reset.h>
+#include <linux/workqueue.h>
 
 #include "rockchip_drm_drv.h"
 #include "rockchip_drm_fb.h"
@@ -37,6 +39,8 @@
 #include "rockchip_drm_vop.h"
 
 #include <soc/rockchip/dmc-sync.h>
+
+#define VOP_GAMMA_LUT_SIZE 1024
 
 #define VOP_REG(off, _mask, s) \
 		{.offset = off, \
@@ -60,6 +64,8 @@
 
 #define VOP_WIN_GET(x, win, name) \
 		vop_read_reg(x, win->base, &win->phy->name)
+#define VOP_CTRL_GET(x, name) \
+		vop_read_reg(x, 0, &(x)->data->ctrl->name)
 
 #define VOP_WIN_GET_YRGBADDR(vop, win) \
 		vop_readl(vop, win->base + win->phy->yrgb_mst.offset)
@@ -119,6 +125,12 @@ struct vop {
 	/* physical map length of vop register */
 	uint32_t len;
 
+	void __iomem *lut_regs;
+	uint32_t lut_len;
+	uint32_t lut[VOP_GAMMA_LUT_SIZE];
+	struct work_struct load_lut_work;
+	bool lut_active;
+
 	/* one time only one process allowed to config the register */
 	spinlock_t reg_lock;
 	/* lock vop irq reg */
@@ -173,6 +185,7 @@ struct vop_ctrl {
 	struct vop_reg out_mode;
 	struct vop_reg dither_down;
 	struct vop_reg dither_up;
+	struct vop_reg dsp_lut_en;
 	struct vop_reg pin_pol;
 
 	struct vop_reg htotal_pw;
@@ -341,6 +354,7 @@ static const struct vop_ctrl ctrl_data = {
 	.mipi_en = VOP_REG(SYS_CTRL, 0x1, 15),
 	.dither_down = VOP_REG(DSP_CTRL1, 0xf, 1),
 	.dither_up = VOP_REG(DSP_CTRL1, 0x1, 6),
+	.dsp_lut_en = VOP_REG(DSP_CTRL1, 0x1, 0),
 	.data_blank = VOP_REG(DSP_CTRL0, 0x1, 19),
 	.out_mode = VOP_REG(DSP_CTRL0, 0xf, 0),
 	.pin_pol = VOP_REG(DSP_CTRL0, 0xf, 4),
@@ -435,6 +449,16 @@ static inline void vop_mask_write_relaxed(struct vop *vop, uint32_t offset,
 		writel_relaxed(cached_val, vop->regs + offset);
 		vop->regsbak[offset >> 2] = cached_val;
 	}
+}
+
+static inline void vop_write_lut(struct vop *vop, uint32_t offset, uint32_t v)
+{
+	writel(v, vop->lut_regs + offset);
+}
+
+static inline uint32_t vop_read_lut(struct vop *vop, uint32_t offset)
+{
+	return readl(vop->lut_regs + offset);
 }
 
 static bool has_rb_swapped(uint32_t format)
@@ -704,6 +728,44 @@ static void vop_line_flag_irq_disable(struct vop *vop)
 	spin_unlock_irqrestore(&vop->irq_lock, flags);
 }
 
+static void vop_crtc_do_load_lut(struct vop *vop)
+{
+	int i, dle;
+
+	spin_lock(&vop->reg_lock);
+	VOP_CTRL_SET(vop, dsp_lut_en, 0);
+	vop_cfg_done(vop);
+	spin_unlock(&vop->reg_lock);
+
+#define CTRL_GET(name) VOP_CTRL_GET(vop, name)
+	readx_poll_timeout(CTRL_GET, dsp_lut_en,
+			   dle, !dle, 5, 33333);
+#undef CTRL_GET
+
+	spin_lock(&vop->reg_lock);
+	for (i = 0; i < VOP_GAMMA_LUT_SIZE; i++)
+		vop_write_lut(vop, i << 2, vop->lut[i]);
+
+	VOP_CTRL_SET(vop, dsp_lut_en, 1);
+	vop_cfg_done(vop);
+	spin_unlock(&vop->reg_lock);
+}
+
+static void vop_crtc_load_lut_worker(struct work_struct *work)
+{
+	struct vop *vop = container_of(work, struct vop, load_lut_work);
+	if (!vop->lut_active)
+		return;
+	vop_crtc_do_load_lut(vop);
+}
+
+static void vop_crtc_load_lut(struct drm_crtc *crtc)
+{
+	struct vop *vop = to_vop(crtc);
+
+	schedule_work(&vop->load_lut_work);
+}
+
 static void vop_enable(struct drm_crtc *crtc)
 {
 	struct vop *vop = to_vop(crtc);
@@ -759,6 +821,8 @@ static void vop_enable(struct drm_crtc *crtc)
 	VOP_CTRL_SET(vop, standby, 0);
 
 	spin_unlock(&vop->reg_lock);
+	vop->lut_active = true;
+	vop_crtc_do_load_lut(vop);
 
 	enable_irq(vop->irq);
 
@@ -796,6 +860,9 @@ static void vop_disable(struct drm_crtc *crtc)
 		wait_for_completion(&vop_win->completion);
 		complete(&vop_win->completion);
 	}
+
+	vop->lut_active = false;
+	cancel_work_sync(&vop->load_lut_work);
 
 	rockchip_dmc_put(&vop->dmc_nb);
 	if (vop->dmc_disabled) {
@@ -1293,6 +1360,24 @@ int rockchip_drm_crtc_mode_config(struct drm_crtc *crtc,
 	vop->connector_out_mode = out_mode;
 
 	return 0;
+}
+
+int rockchip_drm_crtc_negate_color(struct drm_crtc *crtc, bool negate)
+{
+	struct vop *vop = to_vop(crtc);
+	int lut_size = VOP_GAMMA_LUT_SIZE;
+	int i;
+
+	flush_work(&vop->load_lut_work);
+
+	if (negate)
+		for (i = 0; i < lut_size; i++)
+			vop->lut[lut_size - i] = (i << 20) | (i << 10) | i;
+	else
+		for (i = 0; i < lut_size; i++)
+			vop->lut[i] = (i << 20) | (i << 10) | i;
+
+	vop_crtc_load_lut(crtc);
 }
 
 static struct vop *vop_from_pipe(struct drm_device *drm, int pipe)
@@ -1816,9 +1901,14 @@ static int vop_create_crtc(struct vop *vop)
 	vop->dmc_nb.notifier_call = dmc_notify;
 	init_completion(&vop->dmc_completion);
 	init_completion(&vop->dsp_hold_completion);
+	INIT_WORK(&vop->load_lut_work, vop_crtc_load_lut_worker);
 
 	crtc->port = port;
 	vop->pipe = crtc->index;
+
+	drm_mode_crtc_set_gamma_size(crtc, VOP_GAMMA_LUT_SIZE);
+	for (i = 0; i < VOP_GAMMA_LUT_SIZE; i++)
+		vop->lut[i] = (i << 20) | (i << 10) | i;
 
 	return 0;
 
@@ -2024,6 +2114,12 @@ static int vop_bind(struct device *dev, struct device *master, void *data)
 	vop->regsbak = devm_kzalloc(dev, vop->len, GFP_KERNEL);
 	if (!vop->regsbak)
 		return -ENOMEM;
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	vop->lut_len = resource_size(res);
+	vop->lut_regs = devm_ioremap_resource(dev, res);
+	if (IS_ERR(vop->lut_regs))
+		return PTR_ERR(vop->lut_regs);
 
 	ret = vop_initial(vop);
 	if (ret < 0) {
