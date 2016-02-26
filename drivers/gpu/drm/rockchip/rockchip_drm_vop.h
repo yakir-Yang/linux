@@ -119,6 +119,10 @@
 #define DSP_VACT_ST_END			0x0194
 #define DSP_VS_ST_END_F1		0x0198
 #define DSP_VACT_ST_END_F1		0x019c
+/* Brightness / Contrast / Saturation / Hue registers */
+#define BCSH_COLOR_BAR			0x01b0
+#define BCSH_BCS			0x01b4
+#define BCSH_H				0x01b8
 /* register definition end */
 
 /* interrupt define */

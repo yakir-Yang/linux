@@ -131,6 +131,12 @@ struct vop {
 	struct work_struct load_lut_work;
 	bool lut_active;
 
+	u32 bcsh_h;
+	u32 bcsh_bcs;
+	struct mutex bcsh_mutex;
+	struct work_struct load_bcsh_work;
+	bool bcsh_active;
+
 	/* one time only one process allowed to config the register */
 	spinlock_t reg_lock;
 	/* lock vop irq reg */
@@ -194,6 +200,10 @@ struct vop_ctrl {
 	struct vop_reg vact_st_end;
 	struct vop_reg hpost_st_end;
 	struct vop_reg vpost_st_end;
+
+	struct vop_reg bcsh_en;
+	struct vop_reg bcsh_bcs;
+	struct vop_reg bcsh_h;
 };
 
 struct vop_scl_regs {
@@ -364,6 +374,9 @@ static const struct vop_ctrl ctrl_data = {
 	.vact_st_end = VOP_REG(DSP_VACT_ST_END, 0x1fff1fff, 0),
 	.hpost_st_end = VOP_REG(POST_DSP_HACT_INFO, 0x1fff1fff, 0),
 	.vpost_st_end = VOP_REG(POST_DSP_VACT_INFO, 0x1fff1fff, 0),
+	.bcsh_en = VOP_REG(BCSH_COLOR_BAR, 0x1, 0),
+	.bcsh_bcs = VOP_REG(BCSH_BCS, 0xFFFFFFFF, 0),
+	.bcsh_h = VOP_REG(BCSH_H, 0x01FF01FF, 0),
 };
 
 static const struct vop_reg_data vop_init_reg_table[] = {
@@ -728,6 +741,16 @@ static void vop_line_flag_irq_disable(struct vop *vop)
 	spin_unlock_irqrestore(&vop->irq_lock, flags);
 }
 
+static void vop_crtc_do_load_bcsh(struct vop *vop)
+{
+	spin_lock(&vop->reg_lock);
+	VOP_CTRL_SET(vop, bcsh_en, 0x1);
+	VOP_CTRL_SET(vop, bcsh_bcs, (0x3 << 30) | vop->bcsh_bcs);
+	VOP_CTRL_SET(vop, bcsh_h, vop->bcsh_h);
+	vop_cfg_done(vop);
+	spin_unlock(&vop->reg_lock);
+}
+
 static void vop_crtc_do_load_lut(struct vop *vop)
 {
 	int i, dle;
@@ -759,11 +782,26 @@ static void vop_crtc_load_lut_worker(struct work_struct *work)
 	vop_crtc_do_load_lut(vop);
 }
 
+static void vop_crtc_load_bcsh_worker(struct work_struct *work)
+{
+	struct vop *vop = container_of(work, struct vop, load_bcsh_work);
+	if (!vop->bcsh_active)
+		return;
+	vop_crtc_do_load_bcsh(vop);
+}
+
 static void vop_crtc_load_lut(struct drm_crtc *crtc)
 {
 	struct vop *vop = to_vop(crtc);
 
 	schedule_work(&vop->load_lut_work);
+}
+
+static void vop_crtc_load_bcsh(struct drm_crtc *crtc)
+{
+	struct vop *vop = to_vop(crtc);
+
+	schedule_work(&vop->load_bcsh_work);
 }
 
 static void vop_enable(struct drm_crtc *crtc)
@@ -824,6 +862,9 @@ static void vop_enable(struct drm_crtc *crtc)
 	vop->lut_active = true;
 	vop_crtc_do_load_lut(vop);
 
+	vop->bcsh_active = true;
+	vop_crtc_do_load_bcsh(vop);
+
 	enable_irq(vop->irq);
 
 	drm_vblank_on(vop->drm_dev, vop->pipe);
@@ -863,6 +904,9 @@ static void vop_disable(struct drm_crtc *crtc)
 
 	vop->lut_active = false;
 	cancel_work_sync(&vop->load_lut_work);
+
+	vop->bcsh_active = false;
+	cancel_work_sync(&vop->load_bcsh_work);
 
 	rockchip_dmc_put(&vop->dmc_nb);
 	if (vop->dmc_disabled) {
@@ -1362,7 +1406,7 @@ int rockchip_drm_crtc_mode_config(struct drm_crtc *crtc,
 	return 0;
 }
 
-int rockchip_drm_crtc_negate_color(struct drm_crtc *crtc, bool negate)
+int rockchip_drm_crtc_color_negate(struct drm_crtc *crtc, u64 negate)
 {
 	struct vop *vop = to_vop(crtc);
 	int lut_size = VOP_GAMMA_LUT_SIZE;
@@ -1378,6 +1422,78 @@ int rockchip_drm_crtc_negate_color(struct drm_crtc *crtc, bool negate)
 			vop->lut[i] = (i << 20) | (i << 10) | i;
 
 	vop_crtc_load_lut(crtc);
+
+	return 0;
+}
+
+int rockchip_drm_crtc_color_brightness(struct drm_crtc *crtc, u64 brightness)
+{
+	struct vop *vop = to_vop(crtc);
+	u8 reg;
+
+	if (brightness > 0xff)
+		return -EINVAL;
+
+	if (brightness < 128)
+		reg = 0x80 | (brightness - 128);
+	else
+		reg = brightness - 128;
+
+	mutex_lock(&vop->bcsh_mutex);
+	vop->bcsh_bcs = (vop->bcsh_bcs & ~0xff) | reg;
+	mutex_unlock(&vop->bcsh_mutex);
+
+	vop_crtc_load_bcsh(crtc);
+
+	return 0;
+}
+
+int rockchip_drm_crtc_color_contrast(struct drm_crtc *crtc, u64 contrast)
+{
+	struct vop *vop = to_vop(crtc);
+
+	if (contrast > 0x1FF)
+		return -EINVAL;
+
+	mutex_lock(&vop->bcsh_mutex);
+	vop->bcsh_bcs = (vop->bcsh_bcs & ~0x1FF00) | (contrast << 8);
+	mutex_unlock(&vop->bcsh_mutex);
+
+	vop_crtc_load_bcsh(crtc);
+
+	return 0;
+}
+
+int rockchip_drm_crtc_color_saturation(struct drm_crtc *crtc, u64 saturation)
+{
+	struct vop *vop = to_vop(crtc);
+
+	if (saturation > 0x3FF)
+		return -EINVAL;
+
+	mutex_lock(&vop->bcsh_mutex);
+	vop->bcsh_bcs = (vop->bcsh_bcs & ~0x3FF00000) | (saturation << 20);
+	mutex_unlock(&vop->bcsh_mutex);
+
+	vop_crtc_load_bcsh(crtc);
+
+	return 0;
+}
+
+int rockchip_drm_crtc_color_sin_cos_hue(struct drm_crtc *crtc, u64 sin_cos_hue)
+{
+	struct vop *vop = to_vop(crtc);
+	u64 sin_hue = sin_cos_hue & ~0xFFFF;
+	u64 cos_hue = (sin_cos_hue >> 16) & ~0xFFFF;
+
+	if (sin_hue > 0x1FF || cos_hue > 0x1FF)
+		return -EINVAL;
+
+	vop->bcsh_h = sin_cos_hue;
+
+	vop_crtc_load_bcsh(crtc);
+
+	return 0;
 }
 
 static struct vop *vop_from_pipe(struct drm_device *drm, int pipe)
@@ -1903,12 +2019,18 @@ static int vop_create_crtc(struct vop *vop)
 	init_completion(&vop->dsp_hold_completion);
 	INIT_WORK(&vop->load_lut_work, vop_crtc_load_lut_worker);
 
+	mutex_init(&vop->bcsh_mutex);
+	INIT_WORK(&vop->load_bcsh_work, vop_crtc_load_bcsh_worker);
+
 	crtc->port = port;
 	vop->pipe = crtc->index;
 
 	drm_mode_crtc_set_gamma_size(crtc, VOP_GAMMA_LUT_SIZE);
 	for (i = 0; i < VOP_GAMMA_LUT_SIZE; i++)
 		vop->lut[i] = (i << 20) | (i << 10) | i;
+
+	vop->bcsh_h = 0x01000000;
+	vop->bcsh_bcs = 0xD0010000;
 
 	return 0;
 

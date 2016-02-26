@@ -61,7 +61,13 @@ int rockchip_drm_encoder_get_mux_id(struct device_node *node,
 				    struct drm_encoder *encoder);
 int rockchip_drm_crtc_mode_config(struct drm_crtc *crtc, int connector_type,
 				  int out_mode);
-int rockchip_drm_crtc_negate_color(struct drm_crtc *crtc, bool negate);
+
+int rockchip_drm_crtc_color_negate(struct drm_crtc *crtc, u64 negate);
+int rockchip_drm_crtc_color_brightness(struct drm_crtc *crtc, u64 brightness);
+int rockchip_drm_crtc_color_contrast(struct drm_crtc *crtc, u64 contrast);
+int rockchip_drm_crtc_color_saturation(struct drm_crtc *crtc, u64 saturation);
+int rockchip_drm_crtc_color_sin_cos_hue(struct drm_crtc *crtc, u64 sin_cos_hue);
+
 int rockchip_drm_crtc_enable_vblank(struct drm_device *dev, int pipe);
 void rockchip_drm_crtc_disable_vblank(struct drm_device *dev, int pipe);
 int rockchip_drm_dma_attach_device(struct drm_device *drm_dev,

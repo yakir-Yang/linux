@@ -67,25 +67,35 @@ drm_add_fake_info_node(struct drm_minor *minor,
 	return 0;
 }
 
-static int rockchip_drm_color_negate_set(void *data, u64 status)
-{
-	struct drm_device *drm_dev = data;
-	struct drm_crtc *crtc;
+#define __ROCKCHIP_DRM_EXTENSION_SYS(_name) \
+static int rockchip_drm_##_name##_set(void *data, u64 value)		      \
+{									      \
+	struct drm_device *drm_dev = data;				      \
+	struct drm_crtc *crtc;						      \
+									      \
+	list_for_each_entry(crtc, &drm_dev->mode_config.crtc_list, head)      \
+		rockchip_drm_crtc_##_name(crtc, value);			      \
+									      \
+	return 0;							      \
+}									      \
+DEFINE_SIMPLE_ATTRIBUTE(rockchip_drm_##_name##_fops, NULL,		      \
+			rockchip_drm_##_name##_set, "%llu\n");		      \
 
-	list_for_each_entry(crtc, &drm_dev->mode_config.crtc_list, head)
-		rockchip_drm_crtc_color_negate(crtc, status ? true : false);
-
-	return 0;
-}
-
-DEFINE_SIMPLE_ATTRIBUTE(rockchip_drm_color_negate_fops, NULL,
-			rockchip_drm_color_negate_set, "%llu\n");
+__ROCKCHIP_DRM_EXTENSION_SYS(color_negate);
+__ROCKCHIP_DRM_EXTENSION_SYS(color_brightness);
+__ROCKCHIP_DRM_EXTENSION_SYS(color_contrast);
+__ROCKCHIP_DRM_EXTENSION_SYS(color_saturation);
+__ROCKCHIP_DRM_EXTENSION_SYS(color_sin_cos_hue);
 
 static const struct rockchip_drm_debugfs_files {
 	const char *name;
 	const struct file_operations *fops;
 } rockchip_drm_debugfs_files[] = {
 	{"rockchip_color_negate", &rockchip_drm_color_negate_fops},
+	{"rockchip_color_brightness", &rockchip_drm_color_brightness_fops},
+	{"rockchip_color_contrast", &rockchip_drm_color_contrast_fops},
+	{"rockchip_color_saturation", &rockchip_drm_color_saturation_fops},
+	{"rockchip_color_sin_cos_hue", &rockchip_drm_color_sin_cos_hue_fops},
 };
 
 int rockchip_drm_debugfs_init(struct drm_minor *minor)
