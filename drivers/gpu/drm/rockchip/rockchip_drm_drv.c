@@ -67,25 +67,25 @@ drm_add_fake_info_node(struct drm_minor *minor,
 	return 0;
 }
 
-static int rockchip_drm_negate_color_set(void *data, u64 status)
+static int rockchip_drm_color_negate_set(void *data, u64 status)
 {
 	struct drm_device *drm_dev = data;
 	struct drm_crtc *crtc;
 
 	list_for_each_entry(crtc, &drm_dev->mode_config.crtc_list, head)
-		rockchip_drm_crtc_negate_color(crtc, status ? true : false);
+		rockchip_drm_crtc_color_negate(crtc, status ? true : false);
 
 	return 0;
 }
 
-DEFINE_SIMPLE_ATTRIBUTE(rockchip_drm_negate_color_fops, NULL,
-			rockchip_drm_negate_color_set, "%llu\n");
+DEFINE_SIMPLE_ATTRIBUTE(rockchip_drm_color_negate_fops, NULL,
+			rockchip_drm_color_negate_set, "%llu\n");
 
 static const struct rockchip_drm_debugfs_files {
 	const char *name;
 	const struct file_operations *fops;
 } rockchip_drm_debugfs_files[] = {
-	{"rockchip_drm_crtc_negate_color", &rockchip_drm_negate_color_fops},
+	{"rockchip_color_negate", &rockchip_drm_color_negate_fops},
 };
 
 int rockchip_drm_debugfs_init(struct drm_minor *minor)
