@@ -68,17 +68,30 @@ drm_add_fake_info_node(struct drm_minor *minor,
 }
 
 #define __ROCKCHIP_DRM_EXTENSION_SYS(_name) \
+static int rockchip_drm_##_name##_get(void *data, u64 *value)		      \
+{									      \
+	struct drm_device *drm_dev = data;				      \
+	struct rockchip_drm_private *private = drm_dev->dev_private;	      \
+									      \
+	*value = private->_name;					      \
+									      \
+	return 0;							      \
+}									      \
 static int rockchip_drm_##_name##_set(void *data, u64 value)		      \
 {									      \
 	struct drm_device *drm_dev = data;				      \
+	struct rockchip_drm_private *private = drm_dev->dev_private;	      \
 	struct drm_crtc *crtc;						      \
 									      \
 	list_for_each_entry(crtc, &drm_dev->mode_config.crtc_list, head)      \
 		rockchip_drm_crtc_##_name(crtc, value);			      \
 									      \
+	private->_name = value;                                               \
+									      \
 	return 0;							      \
 }									      \
-DEFINE_SIMPLE_ATTRIBUTE(rockchip_drm_##_name##_fops, NULL,		      \
+DEFINE_SIMPLE_ATTRIBUTE(rockchip_drm_##_name##_fops,			      \
+			rockchip_drm_##_name##_get,			      \
 			rockchip_drm_##_name##_set, "%llu\n");		      \
 
 __ROCKCHIP_DRM_EXTENSION_SYS(color_negate);
@@ -101,6 +114,7 @@ static const struct rockchip_drm_debugfs_files {
 int rockchip_drm_debugfs_init(struct drm_minor *minor)
 {
 	struct drm_device *dev = minor->dev;
+	struct rockchip_drm_private *private = dev->dev_private;
 	struct dentry *ent;
 	int ret;
 	int i;
@@ -173,6 +187,11 @@ static int rockchip_drm_load(struct drm_device *drm_dev, unsigned long flags)
 		return -ENOMEM;
 
 	drm_dev->dev_private = private;
+
+	private->color_negate = 0;
+	private->color_brightness = 128;
+	private->color_saturation = 256;
+	private->color_contrast = 256;
 
 #ifdef CONFIG_DRM_DMA_SYNC
 	private->cpu_fence_context = fence_context_alloc(1);

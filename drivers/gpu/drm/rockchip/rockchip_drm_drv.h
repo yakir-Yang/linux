@@ -55,6 +55,11 @@ struct rockchip_drm_private {
 	unsigned int cpu_fence_context;
 	atomic_t cpu_fence_seqno;
 #endif
+	u64 color_negate;
+	u64 color_brightness;
+	u64 color_contrast;
+	u64 color_saturation;
+	u64 color_sin_cos_hue;
 };
 
 int rockchip_drm_encoder_get_mux_id(struct device_node *node,
