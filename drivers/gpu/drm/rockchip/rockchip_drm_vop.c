@@ -887,12 +887,14 @@ static bool vop_crtc_mode_fixup(struct drm_crtc *crtc,
 				struct drm_display_mode *adjusted_mode)
 {
 	struct vop *vop = to_vop(crtc);
+	int ret;
 
 	if (adjusted_mode->htotal == 0 || adjusted_mode->vtotal == 0)
 		return false;
 
-	adjusted_mode->clock =
-		clk_round_rate(vop->dclk, mode->clock * 1000) / 1000;
+	ret = clk_round_rate(vop->dclk, mode->clock * 1000) / 1000;
+	if (ret > 0)
+		adjusted_mode->clock = ret;
 
 	return true;
 }
