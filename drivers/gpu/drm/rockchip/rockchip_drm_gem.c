@@ -109,6 +109,7 @@ static int rockchip_drm_gem_object_mmap(struct drm_gem_object *obj,
 	 * Note that, not sure whether we need to set the VM_MIXED flag for vma.
 	 */
 	vma->vm_flags &= ~VM_PFNMAP;
+	vma->vm_pgoff = 0;
 
 	/* update vm cache attr. */
 	if (rk_obj->flags & ROCKCHIP_BO_CACHABLE)
