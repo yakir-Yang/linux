@@ -42,6 +42,23 @@ struct rockchip_crtc_funcs {
 	void (*wait_for_update)(struct drm_crtc *crtc);
 };
 
+struct drm_rockchip_subdrv {
+        struct list_head list;
+        struct device *dev;
+        struct drm_device *drm_dev;
+
+        int (*open)(struct drm_device *drm_dev, struct device *dev,
+		    struct drm_file *file);
+        void (*close)(struct drm_device *drm_dev, struct device *dev,
+		      struct drm_file *file);
+};
+
+struct rockchip_drm_file_private {
+	struct list_head		gem_cpu_acquire_list;
+	struct file			*anon_filp;
+	struct rockchip_drm_rga_private *rga_priv;
+};
+
 struct rockchip_atomic_commit {
 	struct work_struct	work;
 	struct drm_atomic_state *state;
@@ -61,6 +78,10 @@ struct rockchip_drm_private {
 	const struct rockchip_crtc_funcs *crtc_funcs[ROCKCHIP_MAX_CRTC];
 
 	struct rockchip_atomic_commit commit;
+#ifdef CONFIG_DRM_DMA_SYNC
+	unsigned int cpu_fence_context;
+	atomic_t cpu_fence_seqno;
+#endif
 };
 
 void rockchip_drm_atomic_work(struct work_struct *work);
@@ -75,4 +96,7 @@ int rockchip_drm_dma_attach_device(struct drm_device *drm_dev,
 				   struct device *dev);
 void rockchip_drm_dma_detach_device(struct drm_device *drm_dev,
 				    struct device *dev);
+
+int rockchip_register_subdrv(struct drm_rockchip_subdrv *subdrv);
+int rockchip_unregister_subdrv(struct drm_rockchip_subdrv *subdrv);
 #endif /* _ROCKCHIP_DRM_DRV_H_ */

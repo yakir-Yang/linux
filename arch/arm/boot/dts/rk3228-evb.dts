@@ -65,6 +65,10 @@
 	status = "okay";
 };
 
+&rga {
+	status = "okay";
+};
+
 &vop {
        status = "okay";
 };

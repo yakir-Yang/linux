@@ -50,7 +50,8 @@
 #define SCLK_SDIO_SAMPLE	119
 #define SCLK_EMMC_SAMPLE	121
 #define SCLK_VOP		122
-#define SCLK_HDMI_HDCP		123
+#define SCLK_RGA		123
+#define SCLK_HDMI_HDCP		124
 
 /* dclk gates */
 #define DCLK_VOP		190
@@ -58,6 +59,7 @@
 
 /* aclk gates */
 #define ACLK_DMAC		194
+#define ACLK_RGA		195
 #define ACLK_PERI		210
 #define ACLK_VOP		211
 
@@ -87,6 +89,7 @@
 #define HCLK_SDMMC		456
 #define HCLK_SDIO		457
 #define HCLK_EMMC		459
+#define HCLK_RGA		461
 #define HCLK_PERI		478
 
 #define CLK_NR_CLKS		(HCLK_PERI + 1)

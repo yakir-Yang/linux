@@ -19,22 +19,31 @@
 #include <drm/drmP.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_fb_helper.h>
+//#include <drm/drm_sync_helper.h>
+#include <linux/anon_inodes.h>
+#include <linux/debugfs.h>
 #include <linux/dma-mapping.h>
 #include <linux/pm_runtime.h>
 #include <linux/module.h>
 #include <linux/of_graph.h>
 #include <linux/component.h>
+#include <linux/fence.h>
+
+#include <drm/rockchip_drm.h>
 
 #include "rockchip_drm_drv.h"
 #include "rockchip_drm_fb.h"
 #include "rockchip_drm_fbdev.h"
 #include "rockchip_drm_gem.h"
+#include "rockchip_drm_rga.h"
 
 #define DRIVER_NAME	"rockchip"
 #define DRIVER_DESC	"RockChip Soc DRM"
 #define DRIVER_DATE	"20140818"
 #define DRIVER_MAJOR	1
 #define DRIVER_MINOR	0
+
+static LIST_HEAD(rockchip_drm_subdrv_list);
 
 /*
  * Attach a (component) device to the shared drm dma mapping from master drm
@@ -251,12 +260,141 @@ static int rockchip_drm_unload(struct drm_device *drm_dev)
 	return 0;
 }
 
+int rockchip_register_subdrv(struct drm_rockchip_subdrv *subdrv)
+{
+	if (!subdrv)
+		return -EINVAL;
+
+	list_add_tail(&subdrv->list, &rockchip_drm_subdrv_list);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(rockchip_register_subdrv);
+
+int rockchip_unregister_subdrv(struct drm_rockchip_subdrv *subdrv)
+{
+	if (!subdrv)
+		return -EINVAL;
+
+	list_del(&subdrv->list);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(rockchip_unregister_subdrv);
+
+static const struct file_operations rockchip_drm_gem_fops = {
+	.mmap = rockchip_drm_gem_mmap_buffer,
+};
+
+static int rockchip_drm_open(struct drm_device *dev, struct drm_file *file)
+{
+	struct rockchip_drm_file_private *file_priv;
+	struct drm_rockchip_subdrv *subdrv;
+	struct file *anon_filp;
+	int ret = 0;
+
+	file_priv = kzalloc(sizeof(*file_priv), GFP_KERNEL);
+	if (!file_priv)
+		return -ENOMEM;
+	INIT_LIST_HEAD(&file_priv->gem_cpu_acquire_list);
+
+	file->driver_priv = file_priv;
+
+	anon_filp = anon_inode_getfile("rockchip_gem", &rockchip_drm_gem_fops,
+					NULL, 0);
+	if (IS_ERR(anon_filp)) {
+		ret = PTR_ERR(anon_filp);
+		goto err_file_priv_free;
+	}
+
+	anon_filp->f_mode = FMODE_READ | FMODE_WRITE;
+	file_priv->anon_filp = anon_filp;
+
+	list_for_each_entry(subdrv, &rockchip_drm_subdrv_list, list) {
+		ret = subdrv->open(dev, subdrv->dev, file);
+		if (ret)
+			goto err_file_priv_free;
+	}
+
+	return 0;
+
+err_file_priv_free:
+	kfree(file_priv);
+	file->driver_priv = NULL;
+	return ret;
+}
+
+static void rockchip_drm_preclose(struct drm_device *dev,
+				  struct drm_file *file)
+{
+	struct rockchip_drm_file_private *file_private = file->driver_priv;
+	struct rockchip_gem_object_node *cur, *d;
+	struct drm_rockchip_subdrv *subdrv;
+
+	mutex_lock(&dev->struct_mutex);
+	list_for_each_entry_safe(cur, d,
+			&file_private->gem_cpu_acquire_list, list) {
+#ifdef CONFIG_DRM_DMA_SYNC
+		BUG_ON(!cur->rockchip_gem_obj->acquire_fence);
+		drm_fence_signal_and_put(&cur->rockchip_gem_obj->acquire_fence);
+#endif
+		drm_gem_object_unreference(&cur->rockchip_gem_obj->base);
+		kfree(cur);
+	}
+	/* since we are deleting the whole list, just initialize the header
+	 * instead of calling list_del for every element
+	 */
+	INIT_LIST_HEAD(&file_private->gem_cpu_acquire_list);
+	mutex_unlock(&dev->struct_mutex);
+
+	list_for_each_entry(subdrv, &rockchip_drm_subdrv_list, list)
+		subdrv->close(dev, subdrv->dev, file);
+}
+
+static void rockchip_drm_postclose(struct drm_device *dev, struct drm_file *file)
+{
+	struct rockchip_drm_file_private *file_priv = file->driver_priv;
+
+	if (!file_priv)
+		return;
+
+	if (file_priv->anon_filp)
+		fput(file_priv->anon_filp);
+
+	kfree(file->driver_priv);
+	file->driver_priv = NULL;
+}
+
 void rockchip_drm_lastclose(struct drm_device *dev)
 {
 	struct rockchip_drm_private *priv = dev->dev_private;
 
 	drm_fb_helper_restore_fbdev_mode_unlocked(&priv->fbdev_helper);
 }
+
+static const struct drm_ioctl_desc rockchip_ioctls[] = {
+	DRM_IOCTL_DEF_DRV(ROCKCHIP_RGA_GET_VER, rockchip_rga_get_ver_ioctl,
+			  DRM_AUTH | DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(ROCKCHIP_RGA_SET_CMDLIST, rockchip_rga_set_cmdlist_ioctl,
+			  DRM_AUTH | DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(ROCKCHIP_RGA_EXEC, rockchip_rga_exec_ioctl,
+			  DRM_AUTH | DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_CREATE, rockchip_gem_create_ioctl,
+			  DRM_UNLOCKED | DRM_AUTH | DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_MAP_OFFSET,
+			  rockchip_gem_map_offset_ioctl,
+			  DRM_UNLOCKED | DRM_AUTH | DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_MMAP,
+			  rockchip_drm_gem_mmap_ioctl, DRM_UNLOCKED | DRM_AUTH),
+	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_GET,
+			  rockchip_drm_gem_get_ioctl, DRM_UNLOCKED),
+	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_CPU_ACQUIRE,
+			  rockchip_gem_cpu_acquire_ioctl,
+			  DRM_UNLOCKED | DRM_AUTH),
+	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_CPU_RELEASE,
+			  rockchip_gem_cpu_release_ioctl,
+			  DRM_UNLOCKED | DRM_AUTH),
+};
 
 static const struct file_operations rockchip_drm_driver_fops = {
 	.owner = THIS_MODULE,
@@ -281,7 +419,10 @@ static struct drm_driver rockchip_drm_driver = {
 				  DRIVER_PRIME | DRIVER_ATOMIC,
 	.load			= rockchip_drm_load,
 	.unload			= rockchip_drm_unload,
+	.open			= rockchip_drm_open,
+	.preclose		= rockchip_drm_preclose,
 	.lastclose		= rockchip_drm_lastclose,
+	.postclose		= rockchip_drm_postclose,
 	.get_vblank_counter	= drm_vblank_no_hw_counter,
 	.enable_vblank		= rockchip_drm_crtc_enable_vblank,
 	.disable_vblank		= rockchip_drm_crtc_disable_vblank,
@@ -298,6 +439,8 @@ static struct drm_driver rockchip_drm_driver = {
 	.gem_prime_vmap		= rockchip_gem_prime_vmap,
 	.gem_prime_vunmap	= rockchip_gem_prime_vunmap,
 	.gem_prime_mmap		= rockchip_gem_mmap_buf,
+	.ioctls			= rockchip_ioctls,
+	.num_ioctls		= ARRAY_SIZE(rockchip_ioctls),
 	.fops			= &rockchip_drm_driver_fops,
 	.name	= DRIVER_NAME,
 	.desc	= DRIVER_DESC,

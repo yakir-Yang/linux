@@ -273,9 +273,9 @@ static struct rockchip_clk_branch rk3228_clk_branches[] __initdata = {
 	COMPOSITE_NOMUX(0, "aclk_rga_pre", "sclk_rga_src", 0,
 			RK2928_CLKSEL_CON(33), 8, 5, DFLAGS,
 			RK2928_CLKGATE_CON(1), 2, GFLAGS),
-	COMPOSITE(0, "sclk_rga", mux_sclk_rga_p, 0,
-			RK2928_CLKSEL_CON(22), 5, 2, MFLAGS, 0, 5, DFLAGS,
-			RK2928_CLKGATE_CON(3), 6, GFLAGS),
+	COMPOSITE(SCLK_RGA, "sclk_rga", mux_sclk_rga_p, 0,
+			RK2928_CLKSEL_CON(22), 5, 2, MFLAGS,
+			0, 5, DFLAGS, RK2928_CLKGATE_CON(3), 6, GFLAGS),
 
 	COMPOSITE(0, "aclk_vop_pre", mux_pll_src_4plls_p, 0,
 			RK2928_CLKSEL_CON(33), 5, 2, MFLAGS, 0, 5, DFLAGS,
@@ -498,10 +498,14 @@ static struct rockchip_clk_branch rk3228_clk_branches[] __initdata = {
 	 */
 
 	/* PD_VOP */
-	GATE(0, "aclk_rga", "aclk_rga_pre", 0, RK2928_CLKGATE_CON(13), 0, GFLAGS),
-	GATE(0, "aclk_rga_noc", "aclk_rga_pre", 0, RK2928_CLKGATE_CON(13), 11, GFLAGS),
-	GATE(0, "aclk_iep", "aclk_iep_pre", 0, RK2928_CLKGATE_CON(13), 2, GFLAGS),
-	GATE(0, "aclk_iep_noc", "aclk_iep_pre", 0, RK2928_CLKGATE_CON(13), 9, GFLAGS),
+	GATE(ACLK_RGA, "aclk_rga", "aclk_rga_pre", 0,
+			RK2928_CLKGATE_CON(13), 0, GFLAGS),
+	GATE(0, "aclk_rga_noc", "aclk_rga_pre", CLK_IGNORE_UNUSED,
+			RK2928_CLKGATE_CON(13), 11, GFLAGS),
+	GATE(0, "aclk_iep", "aclk_iep_pre", 0,
+			RK2928_CLKGATE_CON(13), 2, GFLAGS),
+	GATE(0, "aclk_iep_noc", "aclk_iep_pre", 0,
+			RK2928_CLKGATE_CON(13), 9, GFLAGS),
 
 	GATE(ACLK_VOP, "aclk_vop", "aclk_vop_pre", 0, RK2928_CLKGATE_CON(13), 5, GFLAGS),
 	GATE(0, "aclk_vop_noc", "aclk_vop_pre", CLK_IGNORE_UNUSED, RK2928_CLKGATE_CON(13), 12, GFLAGS),
@@ -509,7 +513,8 @@ static struct rockchip_clk_branch rk3228_clk_branches[] __initdata = {
 	GATE(0, "aclk_hdcp", "aclk_hdcp_pre", 0, RK2928_CLKGATE_CON(14), 10, GFLAGS),
 	GATE(0, "aclk_hdcp_noc", "aclk_hdcp_pre", 0, RK2928_CLKGATE_CON(13), 10, GFLAGS),
 
-	GATE(0, "hclk_rga", "hclk_vio_pre", 0, RK2928_CLKGATE_CON(13), 1, GFLAGS),
+	GATE(HCLK_RGA, "hclk_rga", "hclk_vio_pre", 0,
+			RK2928_CLKGATE_CON(13), 1, GFLAGS),
 	GATE(0, "hclk_iep", "hclk_vio_pre", 0, RK2928_CLKGATE_CON(13), 3, GFLAGS),
 	GATE(HCLK_VOP, "hclk_vop", "hclk_vio_pre", 0, RK2928_CLKGATE_CON(13), 6, GFLAGS),
 	GATE(0, "hclk_vio_ahb_arbi", "hclk_vio_pre", CLK_IGNORE_UNUSED, RK2928_CLKGATE_CON(13), 7, GFLAGS),
