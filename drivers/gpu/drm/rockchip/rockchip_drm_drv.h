@@ -30,6 +30,17 @@
 struct drm_device;
 struct drm_connector;
 
+struct drm_rockchip_subdrv {
+        struct list_head list;
+        struct device *dev;
+        struct drm_device *drm_dev;
+
+        int (*open)(struct drm_device *drm_dev, struct device *dev,
+		    struct drm_file *file);
+        void (*close)(struct drm_device *drm_dev, struct device *dev,
+		      struct drm_file *file);
+};
+
 /*
  * Rockchip drm_file private structure.
  *
@@ -79,5 +90,8 @@ int rockchip_drm_dma_attach_device(struct drm_device *drm_dev,
 				   struct device *dev);
 void rockchip_drm_dma_detach_device(struct drm_device *drm_dev,
 				    struct device *dev);
+
+int rockchip_register_subdrv(struct drm_rockchip_subdrv *subdrv);
+int rockchip_unregister_subdrv(struct drm_rockchip_subdrv *subdrv);
 
 #endif /* _ROCKCHIP_DRM_DRV_H_ */

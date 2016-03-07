@@ -34,12 +34,15 @@
 #include "rockchip_drm_fb.h"
 #include "rockchip_drm_fbdev.h"
 #include "rockchip_drm_gem.h"
+#include "rockchip_drm_rga.h"
 
 #define DRIVER_NAME	"rockchip"
 #define DRIVER_DESC	"RockChip Soc DRM"
 #define DRIVER_DATE	"20140818"
 #define DRIVER_MAJOR	1
 #define DRIVER_MINOR	0
+
+static LIST_HEAD(rockchip_drm_subdrv_list);
 
 /* As the drm_debugfs_init() routines are called before dev->dev_private is
  * allocated we need to hook into the minor for release. */
@@ -114,7 +117,6 @@ static const struct rockchip_drm_debugfs_files {
 int rockchip_drm_debugfs_init(struct drm_minor *minor)
 {
 	struct drm_device *dev = minor->dev;
-	struct rockchip_drm_private *private = dev->dev_private;
 	struct dentry *ent;
 	int ret;
 	int i;
@@ -305,6 +307,28 @@ static int rockchip_drm_unload(struct drm_device *drm_dev)
 	return 0;
 }
 
+int rockchip_register_subdrv(struct drm_rockchip_subdrv *subdrv)
+{
+	if (!subdrv)
+		return -EINVAL;
+
+	list_add_tail(&subdrv->list, &rockchip_drm_subdrv_list);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(rockchip_register_subdrv);
+
+int rockchip_unregister_subdrv(struct drm_rockchip_subdrv *subdrv)
+{
+	if (!subdrv)
+		return -EINVAL;
+
+	list_del(&subdrv->list);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(rockchip_unregister_subdrv);
+
 static const struct file_operations rockchip_drm_gem_fops = {
 	.mmap = rockchip_drm_gem_mmap_buffer,
 };
@@ -312,6 +336,7 @@ static const struct file_operations rockchip_drm_gem_fops = {
 static int rockchip_drm_open(struct drm_device *dev, struct drm_file *file)
 {
 	struct rockchip_drm_file_private *file_priv;
+	struct drm_rockchip_subdrv *subdrv;
 	struct file *anon_filp;
 	int ret = 0;
 
@@ -332,6 +357,12 @@ static int rockchip_drm_open(struct drm_device *dev, struct drm_file *file)
 	anon_filp->f_mode = FMODE_READ | FMODE_WRITE;
 	file_priv->anon_filp = anon_filp;
 
+	list_for_each_entry(subdrv, &rockchip_drm_subdrv_list, list) {
+		ret = subdrv->open(dev, subdrv->dev, file);
+		if (ret)
+			goto err_file_priv_free;
+	}
+
 	return 0;
 
 err_file_priv_free:
@@ -346,6 +377,7 @@ static void rockchip_drm_preclose(struct drm_device *dev,
 {
 	struct rockchip_drm_file_private *file_private = file->driver_priv;
 	struct rockchip_gem_object_node *cur, *d;
+	struct drm_rockchip_subdrv *subdrv;
 
 	mutex_lock(&dev->struct_mutex);
 	list_for_each_entry_safe(cur, d,
@@ -362,6 +394,9 @@ static void rockchip_drm_preclose(struct drm_device *dev,
 	 */
 	INIT_LIST_HEAD(&file_private->gem_cpu_acquire_list);
 	mutex_unlock(&dev->struct_mutex);
+
+	list_for_each_entry(subdrv, &rockchip_drm_subdrv_list, list)
+		subdrv->close(dev, subdrv->dev, file);
 }
 
 static void rockchip_drm_postclose(struct drm_device *dev, struct drm_file *file)
@@ -386,6 +421,12 @@ void rockchip_drm_lastclose(struct drm_device *dev)
 }
 
 static const struct drm_ioctl_desc rockchip_ioctls[] = {
+	DRM_IOCTL_DEF_DRV(ROCKCHIP_RGA_GET_VER, rockchip_rga_get_ver_ioctl,
+			  DRM_AUTH | DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(ROCKCHIP_RGA_SET_CMDLIST, rockchip_rga_set_cmdlist_ioctl,
+			  DRM_AUTH | DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(ROCKCHIP_RGA_EXEC, rockchip_rga_exec_ioctl,
+			  DRM_AUTH | DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_CREATE, rockchip_gem_create_ioctl,
 			  DRM_UNLOCKED | DRM_AUTH | DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_MAP_OFFSET,
