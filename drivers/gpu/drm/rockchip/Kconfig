@@ -43,3 +43,12 @@ config ROCKCHIP_LVDS
 	  Rockchip rk3288 SoC has LVDS TX Controller can be used, and it
 	  support lvds, rgb, dual lvds output mode. say Y to enable its
 	  driver.
+
+config ROCKCHIP_RGA
+	tristate "Rockchip RGA support"
+	depends on DRM_ROCKCHIP
+	help
+	  Choose this option to enable support for Rockchip RGA.
+	  Rockchip RGA is a kind of hardware 2D accelerator, and it support
+	  solid roration, scaling, color format transform, say Y to enable its
+	  driver.

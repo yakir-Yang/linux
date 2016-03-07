@@ -41,6 +41,12 @@ struct drm_rockchip_subdrv {
 		      struct drm_file *file);
 };
 
+struct rockchip_drm_rga_private {
+	struct device		*dev;
+	struct list_head	inuse_cmdlist;
+	struct list_head	userptr_list;
+};
+
 /*
  * Rockchip drm_file private structure.
  *
@@ -49,6 +55,7 @@ struct drm_rockchip_subdrv {
 struct rockchip_drm_file_private {
 	struct list_head		gem_cpu_acquire_list;
 	struct file			*anon_filp;
+	struct rockchip_drm_rga_private *rga_priv;
 };
 
 /*
