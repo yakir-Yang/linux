@@ -197,14 +197,9 @@ static void rockchip_dp_drm_encoder_prepare(struct drm_encoder *encoder)
 	 * But if I configure CTRC to RGBaaa, and eDP driver still keep
 	 * RGB666 input video mode, then screen would works prefect.
 	 */
-	if (cn->display_info.color_formats & DRM_COLOR_FORMAT_RGB444)
-		ret = rockchip_drm_crtc_mode_config(encoder->crtc,
-					DRM_MODE_CONNECTOR_eDP,
-					10, DRM_COLOR_FORMAT_RGB444);
-	if (ret < 0) {
-		dev_err(dp->dev, "Could not set crtc mode config (%d)\n", ret);
-		return;
-	}
+	ret = rockchip_drm_crtc_mode_config(encoder->crtc,
+				DRM_MODE_CONNECTOR_eDP,
+				10, DRM_COLOR_FORMAT_RGB444);
 
 	ret = rockchip_drm_encoder_get_mux_id(dp->dev->of_node, encoder);
 	if (ret < 0)
