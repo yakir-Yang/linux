@@ -152,12 +152,30 @@ struct drm_rockchip_rga_exec {
        __u64                                   async;
 };
 
+/**
+ * A structure for set/get VOP win color key
+ *
+ * @plane_id: the drm id of target plane
+ * @enabled: set/get the color key status, 1 means enabled, 0 means disabled.
+ * @colorkey: the key color value, for win0/1 the color key is RGB 10bit, and
+ *	      for win2/3 the color key is RGB 8bit.
+ */
+struct drm_rockchip_plane_colorkey {
+	__u32 plane_id;
+	__u32 enabled;
+	__u32 colorkey;
+};
+
 #define DRM_ROCKCHIP_GEM_CREATE		0x00
 #define DRM_ROCKCHIP_GEM_MAP_OFFSET	0x01
 #define DRM_ROCKCHIP_GEM_CPU_ACQUIRE	0x02
 #define DRM_ROCKCHIP_GEM_CPU_RELEASE	0x03
 #define DRM_ROCKCHIP_GEM_MMAP		0x04
 #define DRM_ROCKCHIP_GEM_GET		0x05
+
+#define DRM_ROCKCHIP_VOP_GET_PLANE_COLORKEY	0x10
+#define DRM_ROCKCHIP_VOP_SET_PLANE_COLORKEY	0x11
+
 #define DRM_ROCKCHIP_RGA_GET_VER		0x20
 #define DRM_ROCKCHIP_RGA_SET_CMDLIST		0x21
 #define DRM_ROCKCHIP_RGA_EXEC			0x22
@@ -188,5 +206,11 @@ struct drm_rockchip_rga_exec {
 
 #define DRM_IOCTL_ROCKCHIP_GEM_CPU_RELEASE	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_ROCKCHIP_GEM_CPU_RELEASE, struct drm_rockchip_gem_cpu_release)
+
+#define DRM_IOCTL_ROCKCHIP_VOP_GET_PLANE_COLORKEY	DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_ROCKCHIP_VOP_GET_PLANE_COLORKEY, struct drm_rockchip_plane_colorkey)
+
+#define DRM_IOCTL_ROCKCHIP_VOP_SET_PLANE_COLORKEY	DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_ROCKCHIP_VOP_SET_PLANE_COLORKEY, struct drm_rockchip_plane_colorkey)
 
 #endif /* _UAPI_ROCKCHIP_DRM_H */

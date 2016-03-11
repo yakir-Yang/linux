@@ -33,6 +33,8 @@
 #include <linux/reset.h>
 #include <linux/workqueue.h>
 
+#include <drm/rockchip_drm.h>
+
 #include "rockchip_drm_drv.h"
 #include "rockchip_drm_fb.h"
 #include "rockchip_drm_gem.h"
@@ -251,6 +253,9 @@ struct vop_win_phy {
 	struct vop_reg yrgb_vir;
 	struct vop_reg uv_vir;
 
+	struct vop_reg enable_colorkey;
+	struct vop_reg colorkey;
+
 	struct vop_reg dst_alpha_ctl;
 	struct vop_reg src_alpha_ctl;
 };
@@ -338,6 +343,8 @@ static const struct vop_win_phy win01_data = {
 	.uv_vir = VOP_REG(WIN0_VIR, 0x3fff, 16),
 	.src_alpha_ctl = VOP_REG(WIN0_SRC_ALPHA_CTRL, 0xff, 0),
 	.dst_alpha_ctl = VOP_REG(WIN0_DST_ALPHA_CTRL, 0xff, 0),
+	.colorkey = VOP_REG(WIN0_COLOR_KEY, 0x3fffffff, 0),
+	.enable_colorkey = VOP_REG(WIN0_COLOR_KEY, 0x1, 31),
 };
 
 static const struct vop_win_phy win23_data = {
@@ -352,6 +359,8 @@ static const struct vop_win_phy win23_data = {
 	.yrgb_vir = VOP_REG(WIN2_VIR0_1, 0x1fff, 0),
 	.src_alpha_ctl = VOP_REG(WIN2_SRC_ALPHA_CTRL, 0xff, 0),
 	.dst_alpha_ctl = VOP_REG(WIN2_DST_ALPHA_CTRL, 0xff, 0),
+	.colorkey = VOP_REG(WIN2_COLOR_KEY, 0xffffff, 0),
+	.enable_colorkey = VOP_REG(WIN2_COLOR_KEY, 0x1, 24),
 };
 
 static const struct vop_ctrl ctrl_data = {
@@ -1381,6 +1390,57 @@ static int vop_disable_plane(struct drm_plane *plane)
 	return 0;
 }
 
+static int vop_set_plane_colorkey(struct drm_plane *plane,
+				  struct drm_rockchip_plane_colorkey *ck)
+{
+	struct vop_win *vop_win = to_vop_win(plane);
+	const struct vop_win_data *win = vop_win->data;
+	struct vop *vop;
+
+	if (!ck)
+		return -EINVAL;
+
+	if (!plane->crtc)
+		return -ENODEV;
+
+	vop = to_vop(plane->crtc);
+
+	if (!vop_win->vop->is_enabled)
+		return -EFAULT;
+
+	spin_lock(&vop->reg_lock);
+	VOP_WIN_SET(vop, win, enable_colorkey, ck->enabled);
+	VOP_WIN_SET(vop, win, colorkey, ck->colorkey);
+	vop_cfg_done(vop);
+	spin_unlock(&vop->reg_lock);
+
+	return 0;
+}
+
+static int vop_get_plane_colorkey(struct drm_plane *plane,
+				  struct drm_rockchip_plane_colorkey *ck)
+{
+	struct vop_win *vop_win = to_vop_win(plane);
+	const struct vop_win_data *win = vop_win->data;
+	struct vop *vop;
+
+	if (!ck)
+		return -EINVAL;
+
+	if (!plane->crtc)
+		return -ENODEV;
+
+	vop = to_vop(plane->crtc);
+
+	if (!vop_win->vop->is_enabled)
+		return -EFAULT;
+
+	ck->colorkey = VOP_WIN_GET(vop, win, colorkey);
+	ck->enabled = VOP_WIN_GET(vop, win, enable_colorkey);
+
+	return 0;
+}
+
 static void vop_plane_destroy(struct drm_plane *plane)
 {
 	vop_disable_plane(plane);
@@ -1494,6 +1554,62 @@ int rockchip_drm_crtc_color_sin_cos_hue(struct drm_crtc *crtc, u64 sin_cos_hue)
 	vop_crtc_load_bcsh(crtc);
 
 	return 0;
+}
+
+int rockchip_drm_set_plane_colorkey_ioctl(struct drm_device *dev, void *data,
+					  struct drm_file *file_priv)
+{
+	struct drm_rockchip_plane_colorkey *set = data;
+	struct drm_mode_object *obj;
+	struct drm_plane *plane;
+	int ret = 0;
+
+	if (!drm_core_check_feature(dev, DRIVER_MODESET))
+		return -ENODEV;
+
+	drm_modeset_lock_all(dev);
+
+	obj = drm_mode_object_find(dev, set->plane_id, DRM_MODE_OBJECT_PLANE);
+	if (!obj) {
+		ret = -ENOENT;
+		goto out_unlock;
+	}
+
+	plane = obj_to_plane(obj);
+
+	ret = vop_set_plane_colorkey(plane, set);
+
+out_unlock:
+	drm_modeset_unlock_all(dev);
+	return ret;
+}
+
+int rockchip_drm_get_plane_colorkey_ioctl(struct drm_device *dev, void *data,
+					  struct drm_file *file_priv)
+{
+	struct drm_rockchip_plane_colorkey *get = data;
+	struct drm_mode_object *obj;
+	struct drm_plane *plane;
+	int ret = 0;
+
+	if (!drm_core_check_feature(dev, DRIVER_MODESET))
+		return -ENODEV;
+
+	drm_modeset_lock_all(dev);
+
+	obj = drm_mode_object_find(dev, get->plane_id, DRM_MODE_OBJECT_PLANE);
+	if (!obj) {
+		ret = -ENOENT;
+		goto out_unlock;
+	}
+
+	plane = obj_to_plane(obj);
+
+	ret = vop_get_plane_colorkey(plane, get);
+
+out_unlock:
+	drm_modeset_unlock_all(dev);
+	return ret;
 }
 
 static struct vop *vop_from_pipe(struct drm_device *drm, int pipe)

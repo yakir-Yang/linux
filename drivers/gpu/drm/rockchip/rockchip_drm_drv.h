@@ -101,4 +101,9 @@ void rockchip_drm_dma_detach_device(struct drm_device *drm_dev,
 int rockchip_register_subdrv(struct drm_rockchip_subdrv *subdrv);
 int rockchip_unregister_subdrv(struct drm_rockchip_subdrv *subdrv);
 
+int rockchip_drm_get_plane_colorkey_ioctl(struct drm_device *dev, void *data,
+					  struct drm_file *file_priv);
+int rockchip_drm_set_plane_colorkey_ioctl(struct drm_device *dev, void *data,
+					  struct drm_file *file_priv);
+
 #endif /* _ROCKCHIP_DRM_DRV_H_ */
