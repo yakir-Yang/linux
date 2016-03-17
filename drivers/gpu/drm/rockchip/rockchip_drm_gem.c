@@ -350,7 +350,7 @@ int rockchip_gem_dumb_create(struct drm_file *file_priv,
 		args->size = args->pitch * args->height;
 
 	rk_obj = rockchip_gem_create_with_handle(file_priv, dev, args->size,
-						 ROCKCHIP_BO_CONTIG |
+						 ROCKCHIP_BO_NONCONTIG |
 						 ROCKCHIP_BO_WC, &args->handle);
 
 	return PTR_ERR_OR_ZERO(rk_obj);
