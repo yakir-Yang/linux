@@ -637,6 +637,24 @@ static const struct component_ops dw_hdmi_rockchip_ops = {
 
 static int dw_hdmi_rockchip_probe(struct platform_device *pdev)
 {
+	struct device_node *np = pdev->dev.of_node;
+	struct device_node *ddc_node;
+	struct i2c_adapter *ddc;
+
+	ddc_node = of_parse_phandle(np, "ddc-i2c-bus", 0);
+	if (ddc_node) {
+		ddc = of_find_i2c_adapter_by_node(ddc_node);
+		of_node_put(ddc_node);
+		if (!ddc) {
+			dev_err(&pdev->dev, "failed to read ddc node\n");
+			return -EPROBE_DEFER;
+		}
+
+		dev_info(&pdev->dev, "succeed to read ddc node\n");
+	} else {
+		dev_err(&pdev->dev, "no ddc property found\n");
+	}
+
 	return component_add(&pdev->dev, &dw_hdmi_rockchip_ops);
 }
 
