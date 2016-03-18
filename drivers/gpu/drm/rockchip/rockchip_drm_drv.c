@@ -36,6 +36,8 @@
 #define DRIVER_MAJOR	1
 #define DRIVER_MINOR	0
 
+static LIST_HEAD(rockchip_drm_subdrv_list);
+
 /*
  * Attach a (component) device to the shared drm dma mapping from master drm
  * device.  This is used by the VOPs to map GEM buffers to a common DMA
@@ -251,6 +253,51 @@ static int rockchip_drm_unload(struct drm_device *drm_dev)
 	return 0;
 }
 
+int rockchip_register_subdrv(struct drm_rockchip_subdrv *subdrv)
+{
+	if (!subdrv)
+		return -EINVAL;
+
+	list_add_tail(&subdrv->list, &rockchip_drm_subdrv_list);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(rockchip_register_subdrv);
+
+int rockchip_unregister_subdrv(struct drm_rockchip_subdrv *subdrv)
+{
+	if (!subdrv)
+		return -EINVAL;
+
+	list_del(&subdrv->list);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(rockchip_unregister_subdrv);
+
+static int rockchip_drm_open(struct drm_device *dev, struct drm_file *file)
+{
+	struct drm_rockchip_subdrv *subdrv;
+	int ret = 0;
+
+	list_for_each_entry(subdrv, &rockchip_drm_subdrv_list, list) {
+		ret = subdrv->open(dev, subdrv->dev, file);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+static void rockchip_drm_preclose(struct drm_device *dev,
+				  struct drm_file *file)
+{
+	struct drm_rockchip_subdrv *subdrv;
+
+	list_for_each_entry(subdrv, &rockchip_drm_subdrv_list, list)
+		subdrv->close(dev, subdrv->dev, file);
+}
+
 void rockchip_drm_lastclose(struct drm_device *dev)
 {
 	struct rockchip_drm_private *priv = dev->dev_private;
@@ -281,6 +328,8 @@ static struct drm_driver rockchip_drm_driver = {
 				  DRIVER_PRIME | DRIVER_ATOMIC,
 	.load			= rockchip_drm_load,
 	.unload			= rockchip_drm_unload,
+	.open			= rockchip_drm_open,
+	.preclose		= rockchip_drm_preclose,
 	.lastclose		= rockchip_drm_lastclose,
 	.get_vblank_counter	= drm_vblank_no_hw_counter,
 	.enable_vblank		= rockchip_drm_crtc_enable_vblank,
