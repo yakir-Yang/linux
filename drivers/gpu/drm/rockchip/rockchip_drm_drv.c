@@ -25,10 +25,13 @@
 #include <linux/of_graph.h>
 #include <linux/component.h>
 
+#include <drm/rockchip_drm.h>
+
 #include "rockchip_drm_drv.h"
 #include "rockchip_drm_fb.h"
 #include "rockchip_drm_fbdev.h"
 #include "rockchip_drm_gem.h"
+#include "rockchip_drm_rga.h"
 
 #define DRIVER_NAME	"rockchip"
 #define DRIVER_DESC	"RockChip Soc DRM"
@@ -277,16 +280,28 @@ EXPORT_SYMBOL_GPL(rockchip_unregister_subdrv);
 
 static int rockchip_drm_open(struct drm_device *dev, struct drm_file *file)
 {
+	struct rockchip_drm_file_private *file_priv;
 	struct drm_rockchip_subdrv *subdrv;
 	int ret = 0;
+
+	file_priv = kzalloc(sizeof(*file_priv), GFP_KERNEL);
+	if (!file_priv)
+		return -ENOMEM;
+
+	file->driver_priv = file_priv;
 
 	list_for_each_entry(subdrv, &rockchip_drm_subdrv_list, list) {
 		ret = subdrv->open(dev, subdrv->dev, file);
 		if (ret)
-			return ret;
+			goto err_file_priv_free;
 	}
 
 	return 0;
+
+err_file_priv_free:
+	kfree(file_priv);
+	file->driver_priv = NULL;
+	return ret;
 }
 
 static void rockchip_drm_preclose(struct drm_device *dev,
@@ -298,12 +313,27 @@ static void rockchip_drm_preclose(struct drm_device *dev,
 		subdrv->close(dev, subdrv->dev, file);
 }
 
+static void rockchip_drm_postclose(struct drm_device *dev,
+				   struct drm_file *file)
+{
+	kfree(file->driver_priv);
+}
+
 void rockchip_drm_lastclose(struct drm_device *dev)
 {
 	struct rockchip_drm_private *priv = dev->dev_private;
 
 	drm_fb_helper_restore_fbdev_mode_unlocked(&priv->fbdev_helper);
 }
+
+static const struct drm_ioctl_desc rockchip_ioctls[] = {
+	DRM_IOCTL_DEF_DRV(ROCKCHIP_RGA_GET_VER, rockchip_rga_get_ver_ioctl,
+			  DRM_AUTH | DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(ROCKCHIP_RGA_SET_CMDLIST, rockchip_rga_set_cmdlist_ioctl,
+			  DRM_AUTH | DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(ROCKCHIP_RGA_EXEC, rockchip_rga_exec_ioctl,
+			  DRM_AUTH | DRM_RENDER_ALLOW),
+};
 
 static const struct file_operations rockchip_drm_driver_fops = {
 	.owner = THIS_MODULE,
@@ -330,6 +360,7 @@ static struct drm_driver rockchip_drm_driver = {
 	.unload			= rockchip_drm_unload,
 	.open			= rockchip_drm_open,
 	.preclose		= rockchip_drm_preclose,
+	.postclose		= rockchip_drm_postclose,
 	.lastclose		= rockchip_drm_lastclose,
 	.get_vblank_counter	= drm_vblank_no_hw_counter,
 	.enable_vblank		= rockchip_drm_crtc_enable_vblank,
@@ -347,6 +378,8 @@ static struct drm_driver rockchip_drm_driver = {
 	.gem_prime_vmap		= rockchip_gem_prime_vmap,
 	.gem_prime_vunmap	= rockchip_gem_prime_vunmap,
 	.gem_prime_mmap		= rockchip_gem_mmap_buf,
+	.ioctls			= rockchip_ioctls,
+	.num_ioctls		= ARRAY_SIZE(rockchip_ioctls),
 	.fops			= &rockchip_drm_driver_fops,
 	.name	= DRIVER_NAME,
 	.desc	= DRIVER_DESC,

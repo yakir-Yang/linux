@@ -53,6 +53,10 @@ struct drm_rockchip_subdrv {
 		      struct drm_file *file);
 };
 
+struct rockchip_drm_file_private {
+	struct rockchip_drm_rga_private *rga_priv;
+};
+
 struct rockchip_atomic_commit {
 	struct work_struct	work;
 	struct drm_atomic_state *state;
