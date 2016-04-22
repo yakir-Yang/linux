@@ -651,7 +651,7 @@
 		clock-names = "aclk", "hclk", "sclk";
 
 		resets = <&cru SRST_RGA_CORE>, <&cru SRST_RGA_AXI>, <&cru SRST_RGA_AHB>;
-		reset-names = "sclk", "aclk", "hclk";
+		reset-names = "core", "axi", "ahb";
 		status = "disabled";
 	};
 

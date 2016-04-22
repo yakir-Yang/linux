@@ -41,11 +41,6 @@ struct drm_rockchip_subdrv {
 		      struct drm_file *file);
 };
 
-struct rockchip_drm_rga_private {
-	struct device		*dev;
-	struct list_head	inuse_cmdlist;
-	struct list_head	userptr_list;
-};
 
 /*
  * Rockchip drm_file private structure.

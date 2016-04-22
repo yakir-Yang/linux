@@ -121,35 +121,30 @@ enum e_drm_rockchip_gem_mem_type {
 };
 
 struct drm_rockchip_rga_get_ver {
-       __u32   major;
-       __u32   minor;
+	__u32   major;
+	__u32   minor;
 };
 
 struct drm_rockchip_rga_cmd {
-       __u32   offset;
-       __u32   data;
+	__u32   offset;
+	__u32   data;
 };
 
 enum drm_rockchip_rga_buf_type {
-       RGA_BUF_USERPTR = 1 << 31,
-       RGA_GEM_BUF_FD  = 1 << 30,
-};
-
-struct drm_rockchip_rga_userptr {
-       unsigned long userptr;
-       unsigned long size;
+	RGA_BUF_TYPE_USERPTR = 1 << 31,
+	RGA_BUF_TYPE_GEMFD   = 1 << 30,
 };
 
 struct drm_rockchip_rga_set_cmdlist {
-       __u64                                   cmd;
-       __u64                                   cmd_buf;
-       __u32                                   cmd_nr;
-       __u32                                   cmd_buf_nr;
-       __u64                                   user_data;
+	__u64		cmd;
+	__u64		cmd_buf;
+	__u32		cmd_nr;
+	__u32		cmd_buf_nr;
+	__u64		user_data;
 };
 
 struct drm_rockchip_rga_exec {
-       __u64                                   async;
+	__u64		async;
 };
 
 /**
