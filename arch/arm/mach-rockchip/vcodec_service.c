@@ -1465,6 +1465,7 @@ static int vcodec_bufid_to_iova(struct vpu_subdev_data *data, u8 *tbl,
                 return ret;
             }
             reg->reg[tbl[i]] = mem_region->iova + offset;
+			vpu_debug(DEBUG_REGISTER, "reg[%d]=%x\n", tbl[i], reg->reg[tbl[i]]);
             INIT_LIST_HEAD(&mem_region->reg_lnk);
             list_add_tail(&mem_region->reg_lnk, &reg->mem_region_list);
         }
@@ -1717,7 +1718,11 @@ static void reg_from_run_to_done(struct vpu_subdev_data *data,
         {
             int reg_len = REG_NUM_9190_DEC;
             pservice->reg_codec = NULL;
+			u32 start_iova = reg->reg[12];
             reg_copy_from_hw(reg, data->dec_dev.hwregs, reg_len);
+			reg->reg[12] -= start_iova;
+			reg->reg[12] = (reg->reg[12] << 10);
+			vpu_debug(DEBUG_REGISTER, "reg[12]=%x start_iova= %x", reg->reg[12], start_iova);
             irq_reg = DEC_INTERRUPT_REGISTER;
             break;
         }
@@ -1839,13 +1844,17 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, vpu_reg *reg)
             pservice->reg_codec = reg;
 
             if (data->hw_info->hw_id != HEVC_ID) {
-                for (i = REG_NUM_9190_DEC - 1; i > VPU_REG_DEC_GATE; i--)
+                for (i = REG_NUM_9190_DEC - 1; i > VPU_REG_DEC_GATE; i--) {
                     dst[i] = src[i];
+					vpu_debug(DEBUG_REGISTER, "irq reg[%d]=%08x\n", i, src[i]);
+                }
 
                 VDPU_CLEAN_CACHE(dst);
             } else {
-                for (i = REG_NUM_HEVC_DEC - 1; i > VPU_REG_EN_DEC; i--)
+                for (i = REG_NUM_HEVC_DEC - 1; i > VPU_REG_EN_DEC; i--) {
+					vpu_debug(DEBUG_REGISTER, "irq reg[%d]=%08x\n", i, src[i]);
                     dst[i] = src[i];
+                }
 
                 HEVC_CLEAN_CACHE(dst);
             }
