@@ -705,7 +705,7 @@ static struct kbase_va_region *kbase_mem_from_user_buffer(
 	/* We can't really store the page list because that would involve */
 	/* keeping the pages pinned - instead we pin/unpin around the job */
 	/* (as part of the external resources handling code) */
-	faulted_pages = get_user_pages(current, current->mm, address, *va_pages,
+	faulted_pages = get_user_pages(address, *va_pages,
 			reg->flags & KBASE_REG_GPU_WR, 0, NULL, NULL);
 	up_read(&current->mm->mmap_sem);
 

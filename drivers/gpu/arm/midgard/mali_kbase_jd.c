@@ -230,8 +230,7 @@ static int kbase_jd_user_buf_map(struct kbase_context *kctx,
 	pages = alloc->imported.user_buf.pages;
 
 	down_read(&mm->mmap_sem);
-	pinned_pages = get_user_pages(NULL, mm,
-			address,
+	pinned_pages = get_user_pages(address,
 			alloc->imported.user_buf.nr_pages,
 			reg->flags & KBASE_REG_GPU_WR,
 			0, pages, NULL);
