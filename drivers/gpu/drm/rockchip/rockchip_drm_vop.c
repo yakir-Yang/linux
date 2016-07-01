@@ -34,6 +34,7 @@
 #include "rockchip_drm_drv.h"
 #include "rockchip_drm_gem.h"
 #include "rockchip_drm_fb.h"
+#include "rockchip_drm_psr.h"
 #include "rockchip_drm_vop.h"
 
 #define __REG_SET_RELAXED(x, off, mask, shift, v, write_mask) \
@@ -629,6 +630,9 @@ static void vop_crtc_disable(struct drm_crtc *crtc)
 
 		crtc->state->event = NULL;
 	}
+
+	vop->psr_enabled = false;
+	INIT_DELAYED_WORK(&vop->psr_work, vop_psr_work);
 }
 
 static void vop_plane_destroy(struct drm_plane *plane)
@@ -937,6 +941,8 @@ static int vop_crtc_enable_vblank(struct drm_crtc *crtc)
 
 	spin_unlock_irqrestore(&vop->irq_lock, flags);
 
+	rockchip_drm_psr_disable(&vop->crtc);
+
 	return 0;
 }
 
@@ -953,6 +959,8 @@ static void vop_crtc_disable_vblank(struct drm_crtc *crtc)
 	VOP_INTR_SET_TYPE(vop, enable, FS_INTR, 0);
 
 	spin_unlock_irqrestore(&vop->irq_lock, flags);
+
+	rockchip_drm_psr_enable(&vop->crtc);
 }
 
 static void vop_crtc_wait_for_update(struct drm_crtc *crtc)
@@ -1607,6 +1615,7 @@ static int vop_bind(struct device *dev, struct device *master, void *data)
 		return ret;
 
 	pm_runtime_enable(&pdev->dev);
+
 	return 0;
 }
 
