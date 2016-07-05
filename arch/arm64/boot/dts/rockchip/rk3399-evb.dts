@@ -86,7 +86,7 @@
 };
 
 &pwm3 {
-	status = "okay";
+	status = "disabled";
 };
 
 &uart2 {
