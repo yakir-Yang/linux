@@ -42,7 +42,6 @@
 
 /dts-v1/;
 #include "rk3368.dtsi"
-#include <dt-bindings/input/input.h>
 
 / {
 	model = "Rockchip R88";
@@ -66,14 +65,16 @@
 
 	keys: gpio-keys {
 		compatible = "gpio-keys";
+		#address-cells = <1>;
+		#size-cells = <0>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pwr_key>;
 
-		power {
-			wakeup-source;
+		button@0 {
+			gpio-key,wakeup = <1>;
 			gpios = <&gpio0 2 GPIO_ACTIVE_LOW>;
 			label = "GPIO Power";
-			linux,code = <KEY_POWER>;
+			linux,code = <116>;
 		};
 	};
 
@@ -184,6 +185,7 @@
 };
 
 &emmc {
+	broken-cd;
 	bus-width = <8>;
 	cap-mmc-highspeed;
 	disable-wp;
@@ -331,12 +333,6 @@
 
 &saradc {
 	vref-supply = <&vcc_18>;
-	status = "okay";
-};
-
-&tsadc {
-	rockchip,hw-tshut-mode = <0>; /* tshut mode 0:CRU 1:GPIO */
-	rockchip,hw-tshut-polarity = <0>; /* tshut polarity 0:LOW 1:HIGH */
 	status = "okay";
 };
 
