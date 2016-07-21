@@ -960,6 +960,17 @@ enum drm_connector_status
 analogix_dp_detect(struct drm_connector *connector, bool force)
 {
 	struct analogix_dp_device *dp = to_dp(connector);
+	int ret;
+
+	/*
+	 * Panel would prepare for several times here, but don't worry, it
+	 * would only enable the hardware at the first prepare time.
+	 */
+	if (dp->plat_data->panel) {
+		ret = drm_panel_prepare(dp->plat_data->panel);
+		if (ret)
+			DRM_ERROR("failed to setup the panel ret = %d\n", ret);
+	}
 
 	if (analogix_dp_detect_hpd(dp))
 		return connector_status_disconnected;
@@ -1058,13 +1069,15 @@ static void analogix_dp_bridge_enable(struct drm_bridge *bridge)
 static void analogix_dp_bridge_disable(struct drm_bridge *bridge)
 {
 	struct analogix_dp_device *dp = bridge->driver_private;
+	int ret;
 
 	if (dp->dpms_mode != DRM_MODE_DPMS_ON)
 		return;
 
 	if (dp->plat_data->panel) {
-		if (drm_panel_disable(dp->plat_data->panel)) {
-			DRM_ERROR("failed to disable the panel\n");
+		ret = drm_panel_disable(dp->plat_data->panel);
+		if (ret) {
+			DRM_ERROR("failed to disable the panel [%d]\n", ret);
 			return;
 		}
 	}
@@ -1076,6 +1089,19 @@ static void analogix_dp_bridge_disable(struct drm_bridge *bridge)
 		dp->plat_data->power_off(dp->plat_data);
 
 	pm_runtime_put_sync(dp->dev);
+
+	/*
+	 * Some panels need to be turn off when eDP controller stop to send
+	 * valid video signal, otherwhise panel would go burn in, and keep
+	 * flicker and flicker.
+	 */
+	if (dp->plat_data->panel) {
+		 ret = drm_panel_unprepare(dp->plat_data->panel);
+		 if (ret) {
+			DRM_ERROR("failed to turnoff the panel [%d]\n", ret);
+			return;
+		}
+	}
 
 	dp->dpms_mode = DRM_MODE_DPMS_OFF;
 }
@@ -1332,13 +1358,6 @@ int analogix_dp_bind(struct device *dev, struct drm_device *drm_dev,
 	pm_runtime_enable(dev);
 
 	phy_power_on(dp->phy);
-
-	if (dp->plat_data->panel) {
-		if (drm_panel_prepare(dp->plat_data->panel)) {
-			DRM_ERROR("failed to setup the panel\n");
-			return -EBUSY;
-		}
-	}
 
 	analogix_dp_init_dp(dp);
 
